@@ -1,0 +1,7 @@
+error: only one enum variant can be marked as `#[obce(critical)]`
+ --> tests/ui/error/fail_multiple_critical.rs:1:1
+  |
+1 | #[obce::error]
+  | ^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the attribute macro `obce::error` (in Nightly builds, run with -Z macro-backtrace for more info)

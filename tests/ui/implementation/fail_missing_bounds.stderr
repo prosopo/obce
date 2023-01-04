@@ -1,0 +1,82 @@
+error[E0277]: the trait bound `E: Ext` is not satisfied
+ --> tests/ui/implementation/fail_missing_bounds.rs:9:49
+  |
+9 | impl<'a, 'b, E, T> ChainExtensionDefinition for ExtensionContext<'a, 'b, E, T, ChainExtension> {}
+  |                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Ext` is not implemented for `E`
+  |
+note: required by a bound in `ExtensionContext`
+ --> src/substrate/mod.rs
+  |
+  | pub struct ExtensionContext<'a, 'b, E: Ext, T, Extension>
+  |                                        ^^^ required by this bound in `ExtensionContext`
+help: consider restricting type parameter `E`
+   |
+9  | impl<'a, 'b, E: obce::substrate::pallet_contracts::chain_extension::Ext, T> ChainExtensionDefinition for ExtensionContext<'a, 'b, E, T, ChainExtension> {}
+   |               +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0277]: the trait bound `T: SysConfig` is not satisfied
+ --> tests/ui/implementation/fail_missing_bounds.rs:9:49
+  |
+9 | impl<'a, 'b, E, T> ChainExtensionDefinition for ExtensionContext<'a, 'b, E, T, ChainExtension> {}
+  |                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `SysConfig` is not implemented for `T`
+  |
+note: required by a bound in `ExtensionContext`
+ --> src/substrate/mod.rs
+  |
+  |     T: SysConfig,
+  |        ^^^^^^^^^ required by this bound in `ExtensionContext`
+help: consider restricting type parameter `T`
+   |
+9  | impl<'a, 'b, E, T: obce::substrate::frame_system::Config> ChainExtensionDefinition for ExtensionContext<'a, 'b, E, T, ChainExtension> {}
+   |                  +++++++++++++++++++++++++++++++++++++++
+
+error[E0277]: the trait bound `T: obce::substrate::pallet_contracts::Config` is not satisfied
+   --> tests/ui/implementation/fail_missing_bounds.rs:8:1
+    |
+8   | #[obce::implementation]
+    | ^^^^^^^^^^^^^^^^^^^^^^^ the trait `obce::substrate::pallet_contracts::Config` is not implemented for `T`
+    |
+note: required by a bound in `obce::substrate::pallet_contracts::chain_extension::ChainExtension`
+   --> /home/ivan770/.cargo/git/checkouts/substrate-7e08433d4c370a21/1cc97dd/frame/contracts/src/chain_extension.rs:102:29
+    |
+102 | pub trait ChainExtension<C: Config> {
+    |                             ^^^^^^ required by this bound in `ChainExtension`
+    = note: this error originates in the attribute macro `obce::implementation` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: consider restricting type parameter `T`
+    |
+9   | impl<'a, 'b, E, T: obce::substrate::pallet_contracts::Config> ChainExtensionDefinition for ExtensionContext<'a, 'b, E, T, ChainExtension> {}
+    |                  +++++++++++++++++++++++++++++++++++++++++++
+
+error[E0277]: the trait bound `T: obce::substrate::pallet_contracts::Config` is not satisfied
+   --> tests/ui/implementation/fail_missing_bounds.rs:8:1
+    |
+8   | #[obce::implementation]
+    | ^^^^^^^^^^^^^^^^^^^^^^^ the trait `obce::substrate::pallet_contracts::Config` is not implemented for `T`
+    |
+note: required by a bound in `RegisteredChainExtension`
+   --> /home/ivan770/.cargo/git/checkouts/substrate-7e08433d4c370a21/1cc97dd/frame/contracts/src/chain_extension.rs:148:39
+    |
+148 | pub trait RegisteredChainExtension<C: Config>: ChainExtension<C> {
+    |                                       ^^^^^^ required by this bound in `RegisteredChainExtension`
+    = note: this error originates in the attribute macro `obce::implementation` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: consider restricting type parameter `T`
+    |
+9   | impl<'a, 'b, E, T: obce::substrate::pallet_contracts::Config> ChainExtensionDefinition for ExtensionContext<'a, 'b, E, T, ChainExtension> {}
+    |                  +++++++++++++++++++++++++++++++++++++++++++
+
+error[E0277]: the trait bound `E: Ext` is not satisfied
+   --> tests/ui/implementation/fail_missing_bounds.rs:8:1
+    |
+8   | #[obce::implementation]
+    | ^^^^^^^^^^^^^^^^^^^^^^^ the trait `Ext` is not implemented for `E`
+    |
+note: required by a bound in `Environment`
+   --> /home/ivan770/.cargo/git/checkouts/substrate-7e08433d4c370a21/1cc97dd/frame/contracts/src/chain_extension.rs:200:35
+    |
+200 | pub struct Environment<'a, 'b, E: Ext, S: State> {
+    |                                   ^^^ required by this bound in `Environment`
+    = note: this error originates in the attribute macro `obce::implementation` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: consider restricting type parameter `E`
+    |
+9   | impl<'a, 'b, E, T> ChainExtensionDefinition for ExtensionContext<'a, 'b, E: obce::substrate::pallet_contracts::chain_extension::Ext, T, ChainExtension> {}
+    |                                                                           +++++++++++++++++++++++++++++++++++++++++++++++++++++++++

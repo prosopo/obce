@@ -1,0 +1,7 @@
+error: `ExtensionContext` should have `<'a, 'b, E, T, Extension>`
+ --> tests/ui/implementation/fail_missing_generics.rs:6:1
+  |
+6 | #[obce::implementation]
+  | ^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the attribute macro `obce::implementation` (in Nightly builds, run with -Z macro-backtrace for more info)
