@@ -106,7 +106,8 @@ impl MethodConfig {
                 continue
             }
 
-            let attrs = parse2::<AttributeArgs>(attr.tokens.clone())
+            let attrs = attr
+                .parse_args()
                 .map_err(|error| format_err_spanned!(attr, "unable decode attributes: {}", error,))?;
 
             let id = extract_attributes(attrs)?;

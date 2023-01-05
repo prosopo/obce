@@ -37,6 +37,9 @@ pallet-contracts = { git = "https://github.com/paritytech/substrate", branch = "
 ink_lang = { package = "ink", git = "https://github.com/paritytech/ink", rev = "4655a8b4413cb50cbc38d1b7c173ad426ab06cde", default-features = false, optional = true }
 ink_engine = { git = "https://github.com/paritytech/ink", rev = "4655a8b4413cb50cbc38d1b7c173ad426ab06cde", default-features = false, optional = true }
 
+[dev-dependencies]
+trybuild = "1.0"
+
 [features]
 default = ["std"]
 substrate = [
@@ -79,5 +82,10 @@ runtime-benchmarks = [
 
 [[test]]
 name = "error-macro"
-path = "tests/errors.rs"
+path = "tests/error.rs"
+required-features = ["substrate-std"]
+
+[[test]]
+name = "ui"
+path = "tests/ui.rs"
 required-features = ["substrate-std"]
