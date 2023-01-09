@@ -4,6 +4,9 @@
 # Ignore backup files creates by cargo fmt.
 **/*.rs.bk
 
+# Ignore direnv artifacts
+/.direnv/
+
 Cargo.lock
 
 .idea
