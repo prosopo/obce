@@ -1,4 +1,4 @@
-error: only methods are supported in the trait definition
+error: only methods are supported in trait definitions
  --> tests/ui/definition/fail_invalid_items.rs:3:5
   |
 3 |     const INVALID_ITEM: u32 = 123;

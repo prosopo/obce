@@ -1,4 +1,4 @@
-error: default implementation is not supported in chains extension
+error: default implementation is not supported in chain extensions
  --> tests/ui/definition/fail_default_method.rs:3:32
   |
 3 |       fn default_method() -> u32 {
