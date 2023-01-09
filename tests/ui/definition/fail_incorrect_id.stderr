@@ -1,0 +1,5 @@
+error: id should be integer or string
+ --> tests/ui/definition/fail_incorrect_id.rs:1:20
+  |
+1 | #[obce::definition(id = false)]
+  |                    ^^^^^^^^^^
