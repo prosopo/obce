@@ -1,0 +1,8 @@
+error: default implementation is not supported in chains extension
+ --> tests/ui/definition/fail_default_method.rs:3:32
+  |
+3 |       fn default_method() -> u32 {
+  |  ________________________________^
+4 | |         123
+5 | |     }
+  | |_____^
