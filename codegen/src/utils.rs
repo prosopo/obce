@@ -19,6 +19,16 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+use std::borrow::Borrow;
+
+use itertools::Itertools;
+use syn::{
+    Attribute,
+    NestedMeta,
+};
+
+use crate::types::AttributeArgs;
+
 #[macro_export]
 macro_rules! format_err_spanned {
     ($tokens:expr, $($msg:tt)*) => {
@@ -53,4 +63,28 @@ pub fn blake2b_256(input: &[u8], output: &mut [u8; 32]) {
     blake2.update(input);
     let result = blake2.finalize();
     output.copy_from_slice(&result);
+}
+
+pub trait AttributeParser<A> {
+    fn split_attrs(self) -> Result<(Vec<NestedMeta>, Vec<A>), syn::Error>;
+}
+
+impl<A, I> AttributeParser<A> for I
+where
+    A: Borrow<Attribute>,
+    I: IntoIterator<Item = A>,
+{
+    fn split_attrs(self) -> Result<(Vec<NestedMeta>, Vec<A>), syn::Error> {
+        let (obce_attrs, other_attrs): (Vec<_>, Vec<_>) =
+            self.into_iter().partition(|attr| attr.borrow().path.is_ident("obce"));
+
+        let meta = obce_attrs
+            .into_iter()
+            .map(|attr| Attribute::parse_args::<AttributeArgs>(attr.borrow()))
+            .map_ok(|args| args.into_iter())
+            .flatten_ok()
+            .try_collect()?;
+
+        Ok((meta, other_attrs))
+    }
 }

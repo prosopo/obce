@@ -4,7 +4,6 @@ use quote::quote;
 use syn::{
     parse2,
     parse_quote,
-    Attribute,
     Error,
     FnArg,
     ItemTrait,
@@ -22,6 +21,7 @@ use crate::{
     utils::{
         into_u16,
         into_u32,
+        AttributeParser,
     },
 };
 
@@ -31,8 +31,8 @@ struct TraitAttrs {
 }
 
 impl TraitAttrs {
-    fn new(trait_item: &ItemTrait, attrs: AttributeArgs) -> Result<Self, Error> {
-        let id = find_id(&attrs)?.unwrap_or_else(|| into_u16(&trait_item.ident));
+    fn new<'a, I: IntoIterator<Item = &'a NestedMeta>>(trait_item: &ItemTrait, iter: I) -> Result<Self, Error> {
+        let id = find_id(iter)?.unwrap_or_else(|| into_u16(&trait_item.ident));
 
         // let testing = attrs.iter().any(|arg| {
         //     matches!(
@@ -62,21 +62,12 @@ impl Method {
             ))
         }
 
-        let (obce_attrs, other_attrs) = method_item
-            .attrs
-            .iter()
-            .cloned()
-            .partition::<Vec<_>, _>(|attr| attr.path.is_ident("obce"));
+        let (obce_attrs, other_attrs) = method_item.attrs.iter().cloned().split_attrs()?;
 
         method_item.attrs = other_attrs;
 
-        // FIXME: Handle multiple obce attrs gracefully
-        let id = obce_attrs
-            .first()
-            .map(Attribute::parse_args)
-            .transpose()?
-            .as_ref()
-            .and_then(|attrs| find_id(attrs).transpose())
+        let id = find_id(obce_attrs.iter())
+            .transpose()
             .unwrap_or_else(|| Ok(into_u16(&method_item.sig.ident)))?;
 
         let hash = into_u32(&method_item.sig.ident);
@@ -155,7 +146,7 @@ impl Method {
 pub fn generate(attrs: TokenStream, input: TokenStream) -> Result<TokenStream, Error> {
     let mut trait_item: ItemTrait = parse2(input)?;
 
-    let trait_attrs = TraitAttrs::new(&trait_item, parse2(attrs)?)?;
+    let trait_attrs = TraitAttrs::new(&trait_item, parse2::<AttributeArgs>(attrs)?.iter())?;
 
     let trait_id = trait_attrs.id;
     let trait_name = &trait_item.ident;
@@ -225,9 +216,8 @@ pub fn generate(attrs: TokenStream, input: TokenStream) -> Result<TokenStream, E
     })
 }
 
-fn find_id(attrs: &AttributeArgs) -> Result<Option<u16>, Error> {
-    attrs
-        .iter()
+fn find_id<'a, I: IntoIterator<Item = &'a NestedMeta>>(iter: I) -> Result<Option<u16>, Error> {
+    iter.into_iter()
         .find_map(|arg| {
             match arg {
                 NestedMeta::Meta(Meta::NameValue(value)) if value.path.is_ident("id") => {
