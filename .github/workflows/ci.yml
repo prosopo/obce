@@ -32,6 +32,9 @@ jobs:
         with:
           toolchain: nightly
           override: true
-      - name: Run tests with all features
+      - name: Run tests with substrate-std feature
         run: |
-          RUSTFLAGS="-D warnings" cargo +nightly test --workspace --all-features -- --test-threads=10
+          RUSTFLAGS="-D warnings" cargo +nightly test --workspace --features substrate-std -- --test-threads=10
+      - name: Run tests with ink-std feature
+        run: |
+          RUSTFLAGS="-D warnings" cargo +nightly test --workspace --features ink-std -- --test-threads=10
