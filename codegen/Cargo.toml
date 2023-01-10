@@ -19,6 +19,7 @@ syn = { version = "1", features = ["parsing", "full", "visit", "extra-traits"] }
 quote = "1"
 proc-macro2 = "1"
 blake2 = "0.10"
+tuple = "0.5"
 
 [lib]
 name = "obce_codegen"

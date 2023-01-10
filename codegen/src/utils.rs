@@ -80,8 +80,8 @@ where
 
         let meta = obce_attrs
             .into_iter()
-            .map(|attr| Attribute::parse_args::<AttributeArgs>(attr.borrow()))
-            .map_ok(|args| args.into_iter())
+            .map(|attr| Attribute::parse_args(attr.borrow()))
+            .map_ok(AttributeArgs::into_iter)
             .flatten_ok()
             .try_collect()?;
 

@@ -42,7 +42,7 @@ impl Parse for AttributeArgs {
             }
             let _: syn::token::Comma = input.parse()?;
         }
-        Ok(AttributeArgs { 0: attrs })
+        Ok(AttributeArgs(attrs))
     }
 }
 

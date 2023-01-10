@@ -27,20 +27,11 @@ use crate::{
 
 struct TraitAttrs {
     id: u16,
-    // testing: bool,
 }
 
 impl TraitAttrs {
     fn new<'a, I: IntoIterator<Item = &'a NestedMeta>>(trait_item: &ItemTrait, iter: I) -> Result<Self, Error> {
         let id = find_id(iter)?.unwrap_or_else(|| into_u16(&trait_item.ident));
-
-        // let testing = attrs.iter().any(|arg| {
-        //     matches!(
-        //         arg,
-        //         NestedMeta::Meta(Meta::Path(value))
-        //         if value.is_ident("testing")
-        //     )
-        // });
 
         Ok(Self { id })
     }

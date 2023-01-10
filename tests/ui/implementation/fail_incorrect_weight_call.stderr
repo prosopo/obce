@@ -1,0 +1,5 @@
+error: expected literal
+  --> tests/ui/implementation/fail_incorrect_weight_call.rs:18:30
+   |
+18 |     #[obce(weight(dispatch = crate::test_pallet::Pallet::<T>::test_method))]
+   |                              ^^^^^
