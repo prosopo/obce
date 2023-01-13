@@ -1,5 +1,5 @@
 error: only one enum variant can be marked as `#[obce(critical)]`
- --> tests/ui/error/fail_multiple_critical.rs:1:1
+ --> tests/ui/substrate/error/fail_multiple_critical.rs:1:1
   |
 1 | #[obce::error]
   | ^^^^^^^^^^^^^^

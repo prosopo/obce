@@ -1,0 +1,14 @@
+error[E0308]: mismatched types
+ --> tests/ui/ink/mock/fail_incorrect_output.rs:6:1
+  |
+6 | #[obce::mock]
+  | ^^^^^^^^^^^^^
+  | |
+  | expected `u32`, found `u64`
+  | expected due to this
+  |
+  = note: this error originates in the attribute macro `obce::mock` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: you can convert a `u64` to a `u32` and panic if the converted value doesn't fit
+  |
+6 | #[obce::mock].try_into().unwrap()
+  |              ++++++++++++++++++++

@@ -20,12 +20,12 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #[cfg(feature = "std")]
-pub use ink_engine;
-#[cfg(feature = "std")]
-pub use ink_lang::metadata;
-pub use ink_lang::{
+pub use ink::metadata;
+pub use ink::{
     env,
     prelude,
     primitives,
     storage,
 };
+#[cfg(feature = "std")]
+pub use ink_engine;

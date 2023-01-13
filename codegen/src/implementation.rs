@@ -24,6 +24,8 @@ use std::collections::HashMap;
 use crate::{
     format_err_spanned,
     utils::{
+        input_bindings,
+        input_bindings_tuple,
         into_u32,
         AttributeParser,
     },
@@ -42,7 +44,6 @@ use syn::{
     punctuated::Punctuated,
     Error,
     Expr,
-    FnArg,
     GenericArgument,
     Generics,
     Ident,
@@ -136,7 +137,7 @@ impl ChainExtensionImplementation {
                 let hash = into_u32(&method.sig.ident);
                 let method_name = &method.sig.ident;
                 let input_bindings = input_bindings(&method.sig.inputs);
-                let bindings_tuple = input_bindings_tuple(&method.sig.inputs);
+                let bindings_tuple = input_bindings_tuple(input_bindings.iter());
                 let weight_tokens = handle_weight_attribute(&input_bindings, obce_attrs.iter())?;
 
                 Result::<_, Error>::Ok(quote! {
@@ -297,30 +298,6 @@ fn is_subsequence<T: PartialEq + core::fmt::Debug>(src: &[T], search: &[T]) -> b
         }
     }
     false
-}
-
-fn input_bindings(inputs: &Punctuated<FnArg, Token![,]>) -> Vec<syn::Ident> {
-    inputs
-        .iter()
-        .filter_map(|fn_arg| {
-            if let FnArg::Typed(pat) = fn_arg {
-                Some(pat)
-            } else {
-                None
-            }
-        })
-        .enumerate()
-        .map(|(n, _)| format_ident!("__ink_binding_{}", n))
-        .collect::<Vec<_>>()
-}
-
-fn input_bindings_tuple(inputs: &Punctuated<FnArg, Token![,]>) -> TokenStream {
-    let input_bindings = input_bindings(inputs);
-    match input_bindings.len() {
-        0 => quote! { _ : () },
-        1 => quote! { #( #input_bindings ),* },
-        _ => quote! { ( #( #input_bindings ),* ) },
-    }
 }
 
 fn handle_weight_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(

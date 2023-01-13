@@ -1,0 +1,7 @@
+error: impl marked as mocked should have a trait present
+ --> tests/ui/ink/mock/fail_without_trait.rs:2:1
+  |
+2 | / impl () {
+3 | |     fn method(&self) {}
+4 | | }
+  | |_^

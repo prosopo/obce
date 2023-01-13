@@ -1,5 +1,5 @@
 error: `ExtensionContext` should have `<'a, 'b, E, T, Extension>`
- --> tests/ui/implementation/fail_missing_generics.rs:6:1
+ --> tests/ui/substrate/implementation/fail_missing_generics.rs:6:1
   |
 6 | #[obce::implementation]
   | ^^^^^^^^^^^^^^^^^^^^^^^

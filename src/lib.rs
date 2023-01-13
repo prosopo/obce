@@ -32,4 +32,5 @@ pub use obce_macro::{
     definition,
     error,
     implementation,
+    mock,
 };

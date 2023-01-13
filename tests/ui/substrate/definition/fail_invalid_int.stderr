@@ -1,5 +1,5 @@
 error: number too large to fit in target type
- --> tests/ui/definition/fail_invalid_int.rs:1:25
+ --> tests/ui/substrate/definition/fail_invalid_int.rs:1:25
   |
 1 | #[obce::definition(id = 0x12345678)]
   |                         ^^^^^^^^^^
