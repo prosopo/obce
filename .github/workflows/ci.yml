@@ -5,36 +5,14 @@ on:
     branches: [ main ]
 
 jobs:
-  rustfmt:
-    concurrency:
-      group: rustfmt-${{ github.ref }}
-      cancel-in-progress: true
+  tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Install latest nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-          components: rustfmt
-      - name: Rustfmt check
-        run: cargo +nightly fmt --all -- --check
-  unit-test:
-    concurrency:
-      group: unit-test-${{ github.ref }}
-      cancel-in-progress: true
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install latest nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-      - name: Run tests with substrate-std feature
-        run: |
-          RUSTFLAGS="-D warnings" cargo +nightly test --workspace --features substrate-std -- --test-threads=10
-      - name: Run tests with ink-std feature
-        run: |
-          RUSTFLAGS="-D warnings" cargo +nightly test --workspace --features ink-std -- --test-threads=10
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    - name: Install Nix
+      uses: cachix/install-nix-action@v18
+      with:
+        github_access_token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Run tests
+      run: nix flake check

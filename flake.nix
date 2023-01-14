@@ -7,10 +7,21 @@
       ref = "nixos-unstable";
     };
 
-    rust-overlay = {
+    fenix = {
       type = "github";
-      owner = "oxalica";
-      repo = "rust-overlay";
+      owner = "nix-community";
+      repo = "fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    crane = {
+      type = "github";
+      owner = "ipetkov";
+      repo = "crane";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-utils.follows = "flake-utils";
+      };
     };
 
     flake-utils = {
@@ -22,7 +33,8 @@
 
   outputs = {
     nixpkgs,
-    rust-overlay,
+    fenix,
+    crane,
     flake-utils,
     ...
   }:
@@ -30,24 +42,48 @@
       system: let
         pkgs = import nixpkgs {
           inherit system;
-
-          overlays = [(import rust-overlay)];
         };
+
+        rustToolchain = fenix.packages.${system}.complete;
+
+        craneLib = (crane.lib.${system}.overrideToolchain
+          (rustToolchain.withComponents [
+            "rustc"
+            "cargo"
+            "rustfmt"
+          ]));
+
+        src = ./.;
       in {
-        devShell = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            (rust-bin.nightly."2023-01-08".default.override {
-              extensions = [
-                "rustc"
-                "cargo"
-                "clippy"
-                "rustfmt"
-                "rust-src"
-              ];
-            })
+        devShells.default = pkgs.mkShell {
+          buildInputs = [
+            (rustToolchain.withComponents [
+              "rustc"
+              "cargo"
+              "clippy"
+              "rustfmt"
+              "rust-src"
+            ])
           ];
+        };
+
+        checks = {
+          rustfmt = craneLib.cargoFmt {
+            inherit src;
+          };
+
+          obce-substrate-std = craneLib.cargoTest {
+            inherit src;
+            cargoArtifacts = null;
+            cargoExtraArgs = "--features substrate-std";
+          };
+
+          obce-ink-std = craneLib.cargoTest {
+            inherit src;
+            cargoArtifacts = null;
+            cargoExtraArgs = "--features ink-std";
+          };
         };
       }
     );
 }
-
