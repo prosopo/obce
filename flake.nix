@@ -46,14 +46,20 @@
 
         rustToolchain = fenix.packages.${system}.complete;
 
-        craneLib = (crane.lib.${system}.overrideToolchain
+        craneLib =
+          crane.lib.${system}.overrideToolchain
           (rustToolchain.withComponents [
             "rustc"
             "cargo"
             "rustfmt"
-          ]));
+          ]);
 
         src = ./.;
+
+        cargoArtifacts = craneLib.buildDepsOnly {
+          inherit src;
+          cargoExtraArgs = "--features substrate-std,ink-std";
+        };
       in {
         devShells.default = pkgs.mkShell {
           buildInputs = [
@@ -73,17 +79,17 @@
           };
 
           obce-substrate-std = craneLib.cargoTest {
-            inherit src;
-            cargoArtifacts = null;
+            inherit src cargoArtifacts;
             cargoExtraArgs = "--features substrate-std";
           };
 
           obce-ink-std = craneLib.cargoTest {
-            inherit src;
-            cargoArtifacts = null;
+            inherit src cargoArtifacts;
             cargoExtraArgs = "--features ink-std";
           };
         };
+
+        formatter = pkgs.alejandra;
       }
     );
 }
