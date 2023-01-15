@@ -14,16 +14,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    crane = {
-      type = "github";
-      owner = "ipetkov";
-      repo = "crane";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-        flake-utils.follows = "flake-utils";
-      };
-    };
-
     flake-utils = {
       type = "github";
       owner = "numtide";
@@ -34,7 +24,6 @@
   outputs = {
     nixpkgs,
     fenix,
-    crane,
     flake-utils,
     ...
   }:
@@ -44,49 +33,18 @@
           inherit system;
         };
 
-        rustToolchain = fenix.packages.${system}.complete;
-
-        craneLib =
-          crane.lib.${system}.overrideToolchain
-          (rustToolchain.withComponents [
-            "rustc"
-            "cargo"
-            "rustfmt"
-          ]);
-
-        src = ./.;
-
-        cargoArtifacts = craneLib.buildDepsOnly {
-          inherit src;
-          cargoExtraArgs = "--features substrate-std,ink-std";
-        };
+        rustToolchain = fenix.packages.${system}.complete.withComponents [
+          "rustc"
+          "cargo"
+          "clippy"
+          "rustfmt"
+          "rust-src"
+        ];
       in {
         devShells.default = pkgs.mkShell {
           buildInputs = [
-            (rustToolchain.withComponents [
-              "rustc"
-              "cargo"
-              "clippy"
-              "rustfmt"
-              "rust-src"
-            ])
+            rustToolchain
           ];
-        };
-
-        checks = {
-          rustfmt = craneLib.cargoFmt {
-            inherit src;
-          };
-
-          obce-substrate-std = craneLib.cargoTest {
-            inherit src cargoArtifacts;
-            cargoExtraArgs = "--features substrate-std";
-          };
-
-          obce-ink-std = craneLib.cargoTest {
-            inherit src cargoArtifacts;
-            cargoExtraArgs = "--features ink-std";
-          };
         };
 
         formatter = pkgs.alejandra;

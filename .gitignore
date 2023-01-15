@@ -7,4 +7,6 @@
 # Ignore direnv artifacts
 /.direnv/
 
+Cargo.lock
+
 .idea
