@@ -1,0 +1,19 @@
+error[E0061]: this function takes 1 argument but 0 arguments were supplied
+  --> tests/ui/implementation/fail_weight_missing_args.rs:21:1
+   |
+21 | #[obce::implementation]
+   | ^^^^^^^^^^^^^^^^^^^^^^^ an argument of type `u64` is missing
+   |
+note: associated function defined here
+  --> tests/ui/implementation/test_pallet.rs
+   |
+   |         pub fn test_method(
+   |                ^^^^^^^^^^^
+   |             _origin: OriginFor<T>,
+   |             val: u64,
+   |             --------
+   = note: this error originates in the attribute macro `obce::implementation` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: provide the argument
+   |
+21 | #[obce::implementation](/* u64 */)
+   |                        +++++++++++

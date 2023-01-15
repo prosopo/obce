@@ -19,6 +19,8 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+use std::vec::IntoIter;
+
 use syn::{
     ext::IdentExt,
     parse::{
@@ -40,7 +42,17 @@ impl Parse for AttributeArgs {
             }
             let _: syn::token::Comma = input.parse()?;
         }
-        Ok(AttributeArgs { 0: attrs })
+        Ok(AttributeArgs(attrs))
+    }
+}
+
+impl IntoIterator for AttributeArgs {
+    type Item = NestedMeta;
+
+    type IntoIter = IntoIter<NestedMeta>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 

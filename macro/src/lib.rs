@@ -24,7 +24,7 @@
 use proc_macro::TokenStream;
 
 use obce_codegen::{
-    ChainExtensionDefinition,
+    definition,
     ChainExtensionError,
     ChainExtensionImplementation,
 };
@@ -32,7 +32,7 @@ use obce_codegen::{
 // TODO: Add comments with examples
 #[proc_macro_attribute]
 pub fn definition(attrs: TokenStream, trait_item: TokenStream) -> TokenStream {
-    match ChainExtensionDefinition::generate(attrs.into(), trait_item.into()) {
+    match definition::generate(attrs.into(), trait_item.into()) {
         Ok(traits) => traits.into(),
         Err(err) => err.to_compile_error().into(),
     }

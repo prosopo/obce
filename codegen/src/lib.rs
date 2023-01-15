@@ -19,14 +19,13 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-mod definition;
+pub mod definition;
 mod error;
 mod implementation;
 mod types;
 mod utils;
 
 pub use crate::{
-    definition::ChainExtensionDefinition,
     error::ChainExtensionError,
     implementation::ChainExtensionImplementation,
 };

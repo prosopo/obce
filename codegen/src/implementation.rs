@@ -19,10 +19,16 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+use std::collections::HashMap;
+
 use crate::{
     format_err_spanned,
-    utils::into_u32,
+    utils::{
+        into_u32,
+        AttributeParser,
+    },
 };
+use itertools::Itertools;
 use proc_macro2::TokenStream;
 use quote::{
     format_ident,
@@ -30,28 +36,53 @@ use quote::{
     ToTokens,
 };
 use syn::{
+    parse::Parser,
     parse2,
+    parse_str,
     punctuated::Punctuated,
     Error,
+    Expr,
     FnArg,
     GenericArgument,
     Generics,
+    Ident,
     ImplItem,
     ItemImpl,
+    Lit,
+    Meta,
+    NestedMeta,
+    Path,
     PathArguments,
     Token,
     Type,
 };
+use tuple::Map;
 
 pub struct ChainExtensionImplementation;
 
 impl ChainExtensionImplementation {
     pub fn generate(_attrs: TokenStream, input: TokenStream) -> Result<TokenStream, Error> {
         let impl_item: ItemImpl = parse2(input).unwrap();
-        let original_implementation = impl_item.clone();
+
+        let mut original_implementation = impl_item.clone();
+
+        let method_items = original_implementation.items.iter_mut().filter_map(|item| {
+            if let ImplItem::Method(method_item) = item {
+                Some(method_item)
+            } else {
+                None
+            }
+        });
+
+        for method_item in method_items {
+            let (_, other_attrs) = method_item.attrs.iter().cloned().split_attrs()?;
+
+            method_item.attrs = other_attrs;
+        }
+
         let chain_extension = Self::chain_extension_trait_impl(impl_item)?;
 
-        return Ok(quote! {
+        Ok(quote! {
             // Implementation of the trait for `ExtensionContext` with main logic.
             #original_implementation
 
@@ -61,7 +92,7 @@ impl ChainExtensionImplementation {
     }
 
     #[allow(non_snake_case)]
-    fn chain_extension_trait_impl(impl_item: ItemImpl) -> Result<TokenStream, Error> {
+    fn chain_extension_trait_impl(mut impl_item: ItemImpl) -> Result<TokenStream, Error> {
         let context = Self::split_generics(&impl_item)?;
         let mut main_generics = impl_item.generics.clone();
         main_generics = filter_generics(main_generics, &context.lifetime1);
@@ -87,15 +118,31 @@ impl ChainExtensionImplementation {
             return Err(format_err_spanned!(impl_item, "expected impl trait block",))
         }
 
-        let methods = impl_item.items.iter().filter_map(|item| {
-            if let ImplItem::Method(method) = item {
+        let methods: Vec<_> = impl_item
+            .items
+            .iter_mut()
+            .filter_map(|item| {
+                if let ImplItem::Method(method) = item {
+                    Some(method)
+                } else {
+                    None
+                }
+            })
+            .map(|method| {
+                let (obce_attrs, other_attrs) = method.attrs.iter().cloned().split_attrs()?;
+
+                method.attrs = other_attrs;
+
                 let hash = into_u32(&method.sig.ident);
                 let method_name = &method.sig.ident;
                 let input_bindings = input_bindings(&method.sig.inputs);
                 let bindings_tuple = input_bindings_tuple(&method.sig.inputs);
-                Some(quote! {
+                let weight_tokens = handle_weight_attribute(&input_bindings, obce_attrs.iter())?;
+
+                Result::<_, Error>::Ok(quote! {
                     <#dyn_trait as ::obce::codegen::MethodDescription<#hash>>::ID => {
                         let #bindings_tuple = env.read_as_unbounded(len)?;
+                        #weight_tokens
                         let mut context = ::obce::substrate::ExtensionContext::new(self, env);
                         let result = <_ as #trait_>::#method_name(
                             &mut context
@@ -109,10 +156,8 @@ impl ChainExtensionImplementation {
                         <_ as ::scale::Encode>::using_encoded(&result, |w| context.env.write(w, true, None))?;
                     },
                 })
-            } else {
-                None
-            }
-        });
+            })
+            .try_collect()?;
 
         Ok(quote! {
             impl #main_impls #namespace ChainExtension<#T> for #extension #main_where {
@@ -276,4 +321,84 @@ fn input_bindings_tuple(inputs: &Punctuated<FnArg, Token![,]>) -> TokenStream {
         1 => quote! { #( #input_bindings ),* },
         _ => quote! { ( #( #input_bindings ),* ) },
     }
+}
+
+fn handle_weight_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(
+    input_bindings: &[Ident],
+    iter: I,
+) -> Result<Option<TokenStream>, Error> {
+    let weight_params = iter.into_iter().find_map(|attr| {
+        let NestedMeta::Meta(Meta::List(list)) = attr else {
+            return None;
+        };
+
+        if !list.path.is_ident("weight") {
+            return None
+        }
+
+        let params = list
+            .nested
+            .iter()
+            .filter_map(|param| {
+                match param {
+                    NestedMeta::Meta(Meta::NameValue(value)) => {
+                        Some((
+                            value.path.get_ident()?.to_string(),
+                            match &value.lit {
+                                Lit::Str(st) => st.value(),
+                                _ => return None,
+                            },
+                        ))
+                    }
+                    _ => None,
+                }
+            })
+            .collect::<HashMap<_, _>>();
+
+        Some((params, attr))
+    });
+
+    Ok(if let Some((weight_params, attr)) = weight_params {
+        let dispatch_path = weight_params
+            .get("dispatch")
+            .ok_or_else(|| format_err_spanned!(attr, "unable to find \"dispatch\" attribute"))?;
+
+        let segments = parse_str::<Path>(dispatch_path)?.segments.into_iter();
+        let segments_len = segments.len();
+
+        if segments_len < 3 {
+            return Err(format_err_spanned!(
+                attr,
+                "dispatch path should contain at least three segments"
+            ))
+        }
+
+        let (pallet_ns, _, method_name) = segments
+            .enumerate()
+            .group_by(|(idx, _)| if *idx < segments_len - 2 { 0 } else { *idx })
+            .into_iter()
+            .map(|(_, group)| group.map(|(_, segment)| segment))
+            .next_tuple::<(_, _, _)>()
+            .unwrap()
+            .map(Punctuated::<_, Token![::]>::from_iter);
+
+        let dispatch_args = if let Some(args) = weight_params.get("args") {
+            let parser = Punctuated::<Expr, Token![,]>::parse_terminated;
+            parser.parse_str(args)?.to_token_stream()
+        } else {
+            quote! {
+                #(#input_bindings,)*
+            }
+        };
+
+        let call_variant_name = format_ident!("new_call_variant_{}", method_name.last().unwrap().ident);
+
+        Some(quote! {
+            let __call_variant = &#pallet_ns ::Call::<T>::#call_variant_name(#dispatch_args);
+            let __dispatch_info = <#pallet_ns ::Call<T> as ::obce::substrate::frame_support::dispatch::GetDispatchInfo>::get_dispatch_info(__call_variant);
+            env.charge_weight(__dispatch_info.weight)?;
+        })
+    } else {
+        None
+    })
 }

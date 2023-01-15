@@ -10,7 +10,7 @@ use syn::{
 
 use crate::{
     format_err_spanned,
-    types::AttributeArgs,
+    utils::AttributeParser,
 };
 
 pub struct ChainExtensionError;
@@ -24,30 +24,23 @@ impl ChainExtensionError {
         let mut critical_variant = None;
 
         for variant in enum_item.variants.iter_mut() {
-            let (obce_attrs, mut other_attrs) = variant
-                .attrs
-                .iter()
-                .cloned()
-                .partition::<Vec<_>, _>(|attr| attr.path.is_ident("obce"));
+            let (obce_attrs, mut other_attrs) = variant.attrs.iter().cloned().split_attrs()?;
 
-            for attr in obce_attrs {
-                let args: AttributeArgs = attr.parse_args()?;
+            for arg in obce_attrs {
+                let critical = matches!(
+                    arg,
+                    NestedMeta::Meta(Meta::Path(value))
+                    if value.is_ident("critical")
+                );
 
-                for arg in args.iter() {
-                    let critical = matches!(
-                        arg,
-                        NestedMeta::Meta(Meta::Path(value))
-                        if value.is_ident("critical")
-                    );
+                if critical {
+                    other_attrs.push(syn::parse_quote! {
+                        #[cfg(feature = "substrate")]
+                    });
 
-                    if critical {
-                        other_attrs.push(syn::parse_quote! {
-                            #[cfg(feature = "substrate")]
-                        });
+                    let variant = &variant.ident;
 
-                        let variant = &variant.ident;
-
-                        let previous_critical_variant = critical_variant.replace(quote! {
+                    let previous_critical_variant = critical_variant.replace(quote! {
                             #[cfg(feature = "substrate")]
                             impl #impl_generics ::obce::substrate::SupportCriticalError for #ident #ty_generics #where_clause {
                                 fn try_to_critical(self) -> Result<::obce::substrate::CriticalError, Self> {
@@ -59,12 +52,11 @@ impl ChainExtensionError {
                             }
                         });
 
-                        if let Some(variant) = previous_critical_variant {
-                            return Err(format_err_spanned!(
-                                variant,
-                                "only one enum variant can be marked as `#[obce(critical)]`",
-                            ))
-                        }
+                    if let Some(variant) = previous_critical_variant {
+                        return Err(format_err_spanned!(
+                            variant,
+                            "only one enum variant can be marked as `#[obce(critical)]`",
+                        ))
                     }
                 }
             }
