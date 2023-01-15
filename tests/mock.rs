@@ -1,6 +1,8 @@
-#[obce::definition]
+#[obce::definition(id = 123)]
 pub trait Trait {
     fn method(&mut self, val: u32, another_val: u32) -> u32;
+
+    #[obce(id = 456)]
     fn another_method(&mut self, val: u32) -> u32;
 }
 
