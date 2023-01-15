@@ -81,7 +81,7 @@ pub fn generate(_: TokenStream, input: TokenStream) -> Result<TokenStream, Error
     let proxies = methods.iter()
         .map(|method| {
             let hash = into_u32(&method.sig.ident);
-            
+
             let method_name = &method.sig.ident;
             let proxy_name = format_ident!("ProxyFor{}", hash);
             let proxy_where_clause = if let Some(mut where_clause) = where_clause.cloned() {
@@ -127,10 +127,10 @@ pub fn generate(_: TokenStream, input: TokenStream) -> Result<TokenStream, Error
                     fn call(&mut self, mut input: &[u8], output: &mut Vec<u8>) -> u32 {
                         let bytes: Vec<u8> = ::scale::Decode::decode(&mut &input[..])
                             .unwrap();
-    
+
                         let #typed_bindings_tuple = ::scale::Decode::decode(&mut &bytes[..])
                             .unwrap();
-    
+
                         #[allow(clippy::unnecessary_mut_passed)]
                         let call_output: <dyn #trait_name as ::obce::codegen::MethodDescription<#hash>>::Output = <#item as MockTrait #types>::#method_name(
                             &mut self.0
@@ -138,7 +138,7 @@ pub fn generate(_: TokenStream, input: TokenStream) -> Result<TokenStream, Error
                         );
 
                         ::scale::Encode::encode_to(&call_output, output);
-    
+
                         0
                     }
                 }
