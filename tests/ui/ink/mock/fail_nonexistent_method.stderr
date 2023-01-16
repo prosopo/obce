@@ -5,19 +5,3 @@ error[E0277]: the trait bound `(dyn Trait + 'static): MethodDescription<31894608
   | ^^^^^^^^^^^^^ the trait `MethodDescription<3189460888>` is not implemented for `(dyn Trait + 'static)`
   |
   = note: this error originates in the attribute macro `obce::mock` (in Nightly builds, run with -Z macro-backtrace for more info)
-
-error[E0277]: the trait bound `(dyn Trait + 'static): MethodDescription<3189460888>` is not satisfied
- --> tests/ui/ink/mock/fail_nonexistent_method.rs:4:1
-  |
-4 | #[obce::mock]
-  | ^^^^^^^^^^^^^ the trait `MethodDescription<3189460888>` is not implemented for `(dyn Trait + 'static)`
-  |
-  = note: this error originates in the attribute macro `obce::mock` (in Nightly builds, run with -Z macro-backtrace for more info)
-
-error[E0277]: the trait bound `(dyn Trait + 'static): MethodDescription<3189460888>` is not satisfied
- --> tests/ui/ink/mock/fail_nonexistent_method.rs:4:1
-  |
-4 | #[obce::mock]
-  | ^^^^^^^^^^^^^ the trait `MethodDescription<3189460888>` is not implemented for `(dyn Trait + 'static)`
-  |
-  = note: this error originates in the attribute macro `obce::mock` (in Nightly builds, run with -Z macro-backtrace for more info)
