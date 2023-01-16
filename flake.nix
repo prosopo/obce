@@ -7,10 +7,11 @@
       ref = "nixos-unstable";
     };
 
-    rust-overlay = {
+    fenix = {
       type = "github";
-      owner = "oxalica";
-      repo = "rust-overlay";
+      owner = "nix-community";
+      repo = "fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     flake-utils = {
@@ -22,7 +23,7 @@
 
   outputs = {
     nixpkgs,
-    rust-overlay,
+    fenix,
     flake-utils,
     ...
   }:
@@ -30,24 +31,23 @@
       system: let
         pkgs = import nixpkgs {
           inherit system;
-
-          overlays = [(import rust-overlay)];
         };
+
+        rustToolchain = fenix.packages.${system}.complete.withComponents [
+          "rustc"
+          "cargo"
+          "clippy"
+          "rustfmt"
+          "rust-src"
+        ];
       in {
-        devShell = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            (rust-bin.nightly."2023-01-08".default.override {
-              extensions = [
-                "rustc"
-                "cargo"
-                "clippy"
-                "rustfmt"
-                "rust-src"
-              ];
-            })
+        devShells.default = pkgs.mkShell {
+          buildInputs = [
+            rustToolchain
           ];
         };
+
+        formatter = pkgs.alejandra;
       }
     );
 }
-
