@@ -34,3 +34,10 @@ jobs:
     - name: Build test contract
       working-directory: ./tests/e2e/contract
       run: nix develop -c cargo contract build
+    - name: Copy artifacts
+      run: |
+        mkdir artifacts
+        cp ./target/ink/contract/test_contract.contract artifacts/
+        cp ./target/ink/contract/metadata.json artifacts/test_contract.json
+    - name: Run Typechain compiler
+      run: nix develop -c yarn build:release:no-compile
