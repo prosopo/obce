@@ -41,3 +41,7 @@ jobs:
         cp ./target/ink/contract/metadata.json artifacts/test_contract.json
     - name: Run Typechain compiler
       run: nix develop -c yarn build:release:no-compile
+    - name: Run tests
+      run: |
+        docker run -d -p 9944:9944 --tmpfs /tmp ghcr.io/727-ventures/obce-docker-image:latest
+        nix develop -c yarn test:mocha
