@@ -1,0 +1,39 @@
+[package]
+name = "contract"
+edition = "2021"
+version = "0.1.0"
+authors = ["name <email>"]
+
+[dependencies]
+scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
+scale-info = { version = "2.3", default-features = false, features = ["derive"], optional = true }
+
+ink_primitives = { git = "https://github.com/paritytech/ink", rev = "4655a8b4413cb50cbc38d1b7c173ad426ab06cde", default-features = false }
+ink_metadata = { git = "https://github.com/paritytech/ink", rev = "4655a8b4413cb50cbc38d1b7c173ad426ab06cde", default-features = false, features = ["derive"], optional = true }
+ink_env = { git = "https://github.com/paritytech/ink", rev = "4655a8b4413cb50cbc38d1b7c173ad426ab06cde", default-features = false }
+ink_storage = { git = "https://github.com/paritytech/ink", rev = "4655a8b4413cb50cbc38d1b7c173ad426ab06cde", default-features = false }
+ink = { git = "https://github.com/paritytech/ink", rev = "4655a8b4413cb50cbc38d1b7c173ad426ab06cde", default-features = false }
+
+openbrush = { git = "https://github.com/727-Ventures/openbrush-contracts", default-features = false }
+chain-extension = { git = "https://github.com/727-Ventures/obce-test-environment", branch = "test-env", default-features = false, features = ["ink"] }
+
+[lib]
+name = "test_contract"
+path = "lib.rs"
+crate-type = [
+	"cdylib"
+]
+
+[features]
+default = ["std"]
+std = [
+    "ink_metadata/std",
+    "ink_env/std",
+    "ink_storage/std",
+    "ink_primitives/std",
+    "scale/std",
+    "scale-info/std",
+    "chain-extension/ink-std",
+    "openbrush/std"
+]
+ink-as-dependency = []

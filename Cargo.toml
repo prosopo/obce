@@ -2,6 +2,7 @@
 members = [
     "codegen",
     "macro",
+    "tests/e2e/contract"
 ]
 
 [package]

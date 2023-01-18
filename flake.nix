@@ -44,6 +44,9 @@
         devShells.default = pkgs.mkShell {
           buildInputs = [
             rustToolchain
+            pkgs.python311
+            pkgs.nodejs
+            pkgs.yarn
           ];
         };
 

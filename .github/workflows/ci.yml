@@ -6,15 +6,30 @@ on:
 
 jobs:
   tests:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
-    - name: Install Nix
-      uses: cachix/install-nix-action@v18
-    - name: Rustfmt check
-      run: nix develop -c cargo fmt --all --check
-    - name: Run tests with substrate-std
-      run: RUSTFLAGS="-D warnings" nix develop -c cargo test --workspace --features substrate-std
-    - name: Run tests with ink-std
-      run: RUSTFLAGS="-D warnings" nix develop -c cargo test --workspace --features ink-std
+    - name: Run unit tests
+      runs-on: ubuntu-latest
+      steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Install Nix
+        uses: cachix/install-nix-action@v18
+      - name: Rustfmt check
+        run: nix develop -c cargo fmt --all --check
+      - name: Run tests with substrate-std
+        run: RUSTFLAGS="-D warnings" nix develop -c cargo test --workspace --features substrate-std
+      - name: Run tests with ink-std
+        run: RUSTFLAGS="-D warnings" nix develop -c cargo test --workspace --features ink-std
+    - name: Run integration tests
+      runs-on: ubuntu-latest
+      steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Install Nix
+        uses: cachix/install-nix-action@v18
+      - name: Install cargo-contract
+        run: nix develop -c cargo install cargo-contract --git https://github.com/paritytech/cargo-contract
+      - name: Run yarn
+        run: nix develop -c yarn
+      - name: Build test contract
+        working-directory: ./tests/e2e/contract
+        run: nix develop -c cargo contract build
