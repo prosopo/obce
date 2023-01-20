@@ -47,6 +47,7 @@
         devShells.default = pkgs.mkShell {
           buildInputs = [
             rustToolchain
+            pkgs.zlib
             pkgs.protobuf
             pkgs.python311
             pkgs.nodejs

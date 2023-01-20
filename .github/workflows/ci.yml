@@ -28,7 +28,7 @@ jobs:
     - name: Install Nix
       uses: cachix/install-nix-action@v18
     - name: Download OBCE test environment
-      run: git clone --branch test-env https://github.com/727-Ventures/obce-test-environment
+      run: git clone https://github.com/727-Ventures/obce-test-environment
     - name: Bootstrap OBCE test environment
       working-directory: ./obce-test-environment
       run: |
