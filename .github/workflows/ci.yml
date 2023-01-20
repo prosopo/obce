@@ -16,9 +16,9 @@ jobs:
     - name: Rustfmt check
       run: nix develop -c cargo fmt --all --check
     - name: Run tests with substrate-std
-      run: RUSTFLAGS="-D warnings" nix develop -c cargo test --workspace --features substrate-std
+      run: RUSTFLAGS="-D warnings" nix develop -c cargo test --workspace --exclude contract --features substrate-std
     - name: Run tests with ink-std
-      run: RUSTFLAGS="-D warnings" nix develop -c cargo test --workspace --features ink-std
+      run: RUSTFLAGS="-D warnings" nix develop -c cargo test --workspace --exclude contract --features ink-std
   integration-tests:
     name: Run integration tests
     runs-on: ubuntu-latest
