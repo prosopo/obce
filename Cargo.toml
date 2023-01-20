@@ -1,7 +1,9 @@
 [workspace]
 members = [
     "codegen",
-    "macro",
+    "macro"
+]
+exclude = [
     "tests/e2e/contract"
 ]
 
