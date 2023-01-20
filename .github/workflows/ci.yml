@@ -37,8 +37,8 @@ jobs:
     - name: Copy artifacts
       run: |
         mkdir artifacts
-        cp ./target/ink/contract/test_contract.contract artifacts/
-        cp ./target/ink/contract/metadata.json artifacts/test_contract.json
+        cp ./target/ink/contract/contract.contract artifacts/
+        cp ./target/ink/contract/metadata.json artifacts/contract.json
     - name: Run Typechain compiler
       run: nix develop -c yarn build:release:no-compile
     - name: Run tests
