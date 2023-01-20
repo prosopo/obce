@@ -15,7 +15,7 @@ ink_storage = { git = "https://github.com/paritytech/ink", rev = "4655a8b4413cb5
 ink = { git = "https://github.com/paritytech/ink", rev = "4655a8b4413cb50cbc38d1b7c173ad426ab06cde", default-features = false }
 
 openbrush = { git = "https://github.com/727-Ventures/openbrush-contracts", default-features = false }
-chain-extension = { git = "https://github.com/727-Ventures/obce-test-environment", branch = "test-env", default-features = false, features = ["ink"] }
+chain-extension = { path = "../../../obce-test-environment/chain-extension", default-features = false, features = ["ink"] }
 
 [lib]
 name = "contract"
