@@ -33,7 +33,7 @@ jobs:
       working-directory: ./obce-test-environment
       run: |
         rm -rf .git
-        nix develop -c cargo build --release
+        nix develop -c cargo build
         ./target/debug/substrate-contracts-node --tmp --dev &
     - name: Install cargo-contract
       run: nix develop -c cargo install cargo-contract --git https://github.com/paritytech/cargo-contract
