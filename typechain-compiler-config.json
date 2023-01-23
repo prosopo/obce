@@ -1,0 +1,5 @@
+{
+    "projectFiles": ["tests/e2e/contract/**"],
+    "artifactsPath": "./artifacts",
+    "typechainGeneratedPath": "./typechain-generated"
+}
