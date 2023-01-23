@@ -334,60 +334,87 @@ fn handle_weight_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(
         Some((params, attr))
     });
 
-    Ok(if let Some((weight_params, attr)) = weight_params {
-        let dispatch_path = weight_params
-            .get("dispatch")
-            .ok_or_else(|| format_err_spanned!(attr, "unable to find \"dispatch\" attribute"))?;
+    if let Some((weight_params, attr)) = weight_params {
+        if let Some(dispatch_path) = weight_params.get("dispatch") {
+            let dispatch_args = weight_params.get("args").map(|val| &**val);
 
-        let segments = parse_str::<Path>(dispatch_path)?.segments.into_iter();
-        let segments_len = segments.len();
-
-        if segments_len < 3 {
-            return Err(format_err_spanned!(
+            Ok(Some(handle_dispatch_weight(
                 attr,
-                "dispatch path should contain at least three segments"
+                input_bindings,
+                dispatch_path,
+                dispatch_args,
+            )?))
+        } else if let Some(expr) = weight_params.get("expr") {
+            Ok(Some(handle_expr_weight(input_bindings, expr)?))
+        } else {
+            Err(format_err_spanned!(
+                attr,
+                r#"either "dispatch" or "expr" attributes are expected"#
             ))
         }
-
-        let (pallet_ns, _, method_name) = segments
-            .enumerate()
-            .group_by(|(idx, _)| if *idx < segments_len - 2 { 0 } else { *idx })
-            .into_iter()
-            .map(|(_, group)| group.map(|(_, segment)| segment))
-            .next_tuple::<(_, _, _)>()
-            .unwrap()
-            .map(Punctuated::<_, Token![::]>::from_iter);
-
-        let compute_weight_params = input_bindings.to_punctuated_fnarg();
-        let compute_weight_args = input_bindings.iter_call_params();
-
-        let dispatch_args = if let Some(args) = weight_params.get("args") {
-            let parser = Punctuated::<Expr, Token![,]>::parse_terminated;
-            parser.parse_str(args)?.to_token_stream()
-        } else {
-            let raw_call_params = input_bindings.iter_raw_call_params();
-
-            // If no args were provided try to call the pallet method using default outer args.
-            quote! {
-                #(#raw_call_params,)*
-            }
-        };
-
-        let call_variant_name = format_ident!("new_call_variant_{}", method_name.last().unwrap().ident);
-
-        Some(quote! {
-            #[allow(unused_variables)]
-            fn compute_weight<T>(#compute_weight_params) -> ::obce::substrate::frame_support::dispatch::Weight
-            where
-                T: #pallet_ns ::Config
-            {
-                let __call_variant = &#pallet_ns ::Call::<T>::#call_variant_name(#dispatch_args);
-                <#pallet_ns ::Call<T> as ::obce::substrate::frame_support::dispatch::GetDispatchInfo>::get_dispatch_info(__call_variant).weight
-            }
-
-            env.charge_weight(compute_weight::<T>(#(#compute_weight_args,)*))?;
-        })
     } else {
-        None
-    })
+        Ok(None)
+    }
+}
+
+fn handle_expr_weight(input_bindings: &InputBindings, expr: &str) -> Result<TokenStream, Error> {
+    let expr = parse_str::<Expr>(expr)?;
+
+    let raw_map = input_bindings.raw_special_mapping();
+
+    Ok(quote! {{
+        #[allow(unused_variables)]
+        #raw_map
+        env.charge_weight(#expr.into())?;
+    }})
+}
+
+fn handle_dispatch_weight(
+    attr: &NestedMeta,
+    input_bindings: &InputBindings,
+    dispatch_path: &str,
+    args: Option<&str>,
+) -> Result<TokenStream, Error> {
+    let segments = parse_str::<Path>(dispatch_path)?.segments.into_iter();
+    let segments_len = segments.len();
+
+    if segments_len < 3 {
+        return Err(format_err_spanned!(
+            attr,
+            "dispatch path should contain at least three segments"
+        ))
+    }
+
+    let (pallet_ns, _, method_name) = segments
+        .enumerate()
+        .group_by(|(idx, _)| if *idx < segments_len - 2 { 0 } else { *idx })
+        .into_iter()
+        .map(|(_, group)| group.map(|(_, segment)| segment))
+        .next_tuple::<(_, _, _)>()
+        .unwrap()
+        .map(Punctuated::<_, Token![::]>::from_iter);
+
+    let dispatch_args = if let Some(args) = args {
+        let parser = Punctuated::<Expr, Token![,]>::parse_terminated;
+        parser.parse_str(args)?.to_token_stream()
+    } else {
+        let raw_call_params = input_bindings.iter_raw_call_params();
+
+        // If no args were provided try to call the pallet method using default outer args.
+        quote! {
+            #(#raw_call_params,)*
+        }
+    };
+
+    let call_variant_name = format_ident!("new_call_variant_{}", method_name.last().unwrap().ident);
+
+    let raw_map = input_bindings.raw_special_mapping();
+
+    Ok(quote! {{
+        #[allow(unused_variables)]
+        #raw_map
+        let __call_variant = &#pallet_ns ::Call::<T>::#call_variant_name(#dispatch_args);
+        let __dispatch_info = <#pallet_ns ::Call<T> as ::obce::substrate::frame_support::dispatch::GetDispatchInfo>::get_dispatch_info(__call_variant);
+        env.charge_weight(__dispatch_info.weight)?;
+    }})
 }

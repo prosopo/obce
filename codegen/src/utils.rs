@@ -28,14 +28,12 @@ use quote::{
     quote,
 };
 use syn::{
-    punctuated::Punctuated,
     Attribute,
     FnArg,
     Ident,
     NestedMeta,
     Pat,
     PatType,
-    Token,
     Type,
 };
 
@@ -116,6 +114,9 @@ impl<'a> InputBindings<'a> {
             .map(|(n, _)| format_ident!("__ink_binding_{}", n))
     }
 
+    /// Iterate over raw bindings patterns.
+    ///
+    /// The provided iterator makes no conversions from the inner values stored inside [`InputBindings`].
     pub fn iter_raw_call_params(&self) -> impl Iterator<Item = &Pat> + ExactSizeIterator + '_ {
         self.bindings.iter().map(|pat| &*pat.pat)
     }
@@ -142,11 +143,15 @@ impl<'a> InputBindings<'a> {
         }
     }
 
-    /// Get [`Punctuated`] value with [`FnArg`] separated by comma.
-    ///
-    /// This method basically restores the initial value it was created with.
-    pub fn to_punctuated_fnarg(&self) -> Punctuated<FnArg, Token![,]> {
-        self.bindings.iter().map(|val| FnArg::Typed((*val).clone())).collect()
+    /// Create a "mapping" from "special" identifiers to raw patterns.
+    pub fn raw_special_mapping(&self) -> TokenStream {
+        let lhs = self.bindings.iter().map(|val| &val.pat);
+
+        let rhs = self.iter_call_params();
+
+        quote! {
+            let (#(#lhs,)*) = (#(#rhs,)*);
+        }
     }
 }
 
@@ -169,14 +174,19 @@ impl<'a> FromIterator<&'a FnArg> for InputBindings<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::iter;
+
     use quote::{
         format_ident,
         quote,
     };
     use syn::{
         parse::Parser,
+        parse2,
+        parse_quote,
         punctuated::Punctuated,
         FnArg,
+        Stmt,
         Token,
     };
 
@@ -201,6 +211,58 @@ mod tests {
                 format_ident!("__ink_binding_1"),
                 format_ident!("__ink_binding_2")
             ]
+        );
+    }
+
+    #[test]
+    fn raw_special_mapping_empty() {
+        let input_bindings = InputBindings::from_iter(iter::empty());
+
+        assert_eq!(
+            parse2::<Stmt>(input_bindings.raw_special_mapping()).unwrap(),
+            parse_quote! {
+                let () = ();
+            }
+        );
+    }
+
+    #[test]
+    fn raw_special_mapping_one() {
+        let parser = Punctuated::<FnArg, Token![,]>::parse_terminated;
+
+        let fn_args = parser
+            .parse2(quote! {
+                one: u32
+            })
+            .unwrap();
+
+        let input_bindings = InputBindings::from_iter(&fn_args);
+
+        assert_eq!(
+            parse2::<Stmt>(input_bindings.raw_special_mapping()).unwrap(),
+            parse_quote! {
+                let (one,) = (__ink_binding_0,);
+            }
+        );
+    }
+
+    #[test]
+    fn raw_special_mapping_multiple() {
+        let parser = Punctuated::<FnArg, Token![,]>::parse_terminated;
+
+        let fn_args = parser
+            .parse2(quote! {
+                one: u32, two: u64, three: &'a str
+            })
+            .unwrap();
+
+        let input_bindings = InputBindings::from_iter(&fn_args);
+
+        assert_eq!(
+            parse2::<Stmt>(input_bindings.raw_special_mapping()).unwrap(),
+            parse_quote! {
+                let (one, two, three,) = (__ink_binding_0, __ink_binding_1, __ink_binding_2,);
+            }
         );
     }
 }

@@ -1,4 +1,4 @@
-error: unable to find "dispatch" attribute
+error: either "dispatch" or "expr" attributes are expected
   --> tests/ui/substrate/implementation/fail_weight_without_dispatch.rs:18:12
    |
 18 |     #[obce(weight())]
