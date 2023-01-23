@@ -1,0 +1,15 @@
+error[E0308]: mismatched types
+ --> tests/ui/ink/mock/fail_incorrect_inputs.rs:6:1
+  |
+6 | #[obce::mock]
+  | ^^^^^^^^^^^^^
+  | |
+  | expected `u32`, found `()`
+  | arguments to this function are incorrect
+  |
+note: associated function defined here
+ --> tests/ui/ink/mock/fail_incorrect_inputs.rs:8:8
+  |
+8 |     fn method(&self, val: u32) -> u64 {
+  |        ^^^^^^
+  = note: this error originates in the attribute macro `obce::mock` (in Nightly builds, run with -Z macro-backtrace for more info)

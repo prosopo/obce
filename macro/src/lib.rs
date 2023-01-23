@@ -25,6 +25,7 @@ use proc_macro::TokenStream;
 
 use obce_codegen::{
     definition,
+    mock,
     ChainExtensionError,
     ChainExtensionImplementation,
 };
@@ -50,6 +51,14 @@ pub fn implementation(attrs: TokenStream, impl_item: TokenStream) -> TokenStream
 #[proc_macro_attribute]
 pub fn error(attrs: TokenStream, enum_item: TokenStream) -> TokenStream {
     match ChainExtensionError::generate(attrs.into(), enum_item.into()) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+#[proc_macro_attribute]
+pub fn mock(attrs: TokenStream, enum_item: TokenStream) -> TokenStream {
+    match mock::generate(attrs.into(), enum_item.into()) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
     }

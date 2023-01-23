@@ -1,0 +1,17 @@
+error[E0277]: the trait bound `(dyn Trait + 'static): MethodDescription<3189460888>` is not satisfied
+ --> tests/ui/ink/mock/fail_random_trait.rs:5:1
+  |
+5 | #[obce::mock]
+  | ^^^^^^^^^^^^^ the trait `MethodDescription<3189460888>` is not implemented for `(dyn Trait + 'static)`
+  |
+  = note: this error originates in the attribute macro `obce::mock` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `(dyn Trait + 'static): ExtensionDescription` is not satisfied
+ --> tests/ui/ink/mock/fail_random_trait.rs:5:1
+  |
+5 | #[obce::mock]
+  | ^^^^^^^^^^^^^ the trait `ExtensionDescription` is not implemented for `(dyn Trait + 'static)`
+  |
+  = help: see issue #48214
+  = help: add `#![feature(trivial_bounds)]` to the crate attributes to enable
+  = note: this error originates in the attribute macro `obce::mock` (in Nightly builds, run with -Z macro-backtrace for more info)

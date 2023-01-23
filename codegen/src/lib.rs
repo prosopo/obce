@@ -22,6 +22,7 @@
 pub mod definition;
 mod error;
 mod implementation;
+pub mod mock;
 mod types;
 mod utils;
 

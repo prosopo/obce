@@ -34,12 +34,13 @@ frame-system = { git = "https://github.com/paritytech/substrate", branch = "polk
 pallet-contracts = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.34", default-features = false, optional = true }
 
 # Ink deps
-ink_lang = { package = "ink", git = "https://github.com/paritytech/ink", rev = "4655a8b4413cb50cbc38d1b7c173ad426ab06cde", default-features = false, optional = true }
+ink = { git = "https://github.com/paritytech/ink", rev = "4655a8b4413cb50cbc38d1b7c173ad426ab06cde", default-features = false, optional = true }
 ink_engine = { git = "https://github.com/paritytech/ink", rev = "4655a8b4413cb50cbc38d1b7c173ad426ab06cde", default-features = false, optional = true }
 
 [dev-dependencies]
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.34", default-features = false, features = ["std"] }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.34", default-features = false, features = ["std"] }
+ink = { git = "https://github.com/paritytech/ink", rev = "4655a8b4413cb50cbc38d1b7c173ad426ab06cde", default-features = false, features = ["std"] }
 trybuild = "1.0"
 
 [features]
@@ -53,7 +54,7 @@ substrate = [
     "sp-std",
 ]
 ink = [
-    "ink_lang",
+    "dep:ink",
 ]
 std = [
     "scale-info/std",
@@ -72,7 +73,7 @@ substrate-std = [
 ink-std = [
     "std",
     "ink",
-    "ink_lang/std",
+    "ink/std",
     "ink_engine/std"
 ]
 runtime-benchmarks = [
@@ -88,6 +89,16 @@ path = "tests/error.rs"
 required-features = ["substrate-std"]
 
 [[test]]
-name = "ui"
-path = "tests/ui.rs"
+name = "mock-macro"
+path = "tests/mock.rs"
+required-features = ["ink-std"]
+
+[[test]]
+name = "substrate-ui"
+path = "tests/ui/substrate.rs"
 required-features = ["substrate-std"]
+
+[[test]]
+name = "ink-ui"
+path = "tests/ui/ink.rs"
+required-features = ["ink-std"]

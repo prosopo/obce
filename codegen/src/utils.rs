@@ -22,9 +22,18 @@
 use std::borrow::Borrow;
 
 use itertools::Itertools;
+use proc_macro2::TokenStream;
+use quote::{
+    format_ident,
+    quote,
+};
 use syn::{
+    punctuated::Punctuated,
     Attribute,
+    FnArg,
+    Ident,
     NestedMeta,
+    Token,
 };
 
 use crate::types::AttributeArgs;
@@ -86,5 +95,28 @@ where
             .try_collect()?;
 
         Ok((meta, other_attrs))
+    }
+}
+
+pub fn input_bindings(inputs: &Punctuated<FnArg, Token![,]>) -> Vec<syn::Ident> {
+    inputs
+        .iter()
+        .filter_map(|fn_arg| {
+            if let FnArg::Typed(pat) = fn_arg {
+                Some(pat)
+            } else {
+                None
+            }
+        })
+        .enumerate()
+        .map(|(n, _)| format_ident!("__ink_binding_{}", n))
+        .collect::<Vec<_>>()
+}
+
+pub fn input_bindings_tuple<'a, I: Iterator<Item = &'a Ident> + ExactSizeIterator>(inputs: I) -> TokenStream {
+    match inputs.len() {
+        0 => quote! { _ : () },
+        1 => quote! { #( #inputs ),* },
+        _ => quote! { ( #( #inputs ),* ) },
     }
 }
