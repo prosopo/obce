@@ -17,9 +17,8 @@ use syn::{
 use crate::{
     format_err_spanned,
     utils::{
-        input_bindings,
-        input_bindings_tuple,
         into_u32,
+        InputBindings,
     },
 };
 
@@ -103,16 +102,12 @@ pub fn generate(_: TokenStream, input: TokenStream) -> Result<TokenStream, Error
                         <dyn #trait_name as ::obce::codegen::MethodDescription<#hash>>::Input: ::scale::Decode
                 }
             };
-            let input_bindings = input_bindings(&method.sig.inputs);
-            let bindings_tuple = input_bindings_tuple(input_bindings.iter());
 
-            // Correctly recover from 0-args case.
-            let typed_bindings_tuple = match input_bindings.len() {
-                0 => bindings_tuple,
-                _ => quote! {
-                    #bindings_tuple: <dyn #trait_name as ::obce::codegen::MethodDescription<#hash>>::Input
-                }
-            };
+            let input_bindings = InputBindings::from_iter(&method.sig.inputs);
+            let lhs_pat = input_bindings.lhs_pat(Some(parse_quote! {
+                <dyn #trait_name as ::obce::codegen::MethodDescription<#hash>>::Input
+            }));
+            let call_params = input_bindings.iter_call_params();
 
             quote! {
                 struct #proxy_name #types (#item);
@@ -128,13 +123,13 @@ pub fn generate(_: TokenStream, input: TokenStream) -> Result<TokenStream, Error
                         let bytes: Vec<u8> = ::scale::Decode::decode(&mut &input[..])
                             .unwrap();
 
-                        let #typed_bindings_tuple = ::scale::Decode::decode(&mut &bytes[..])
+                        let #lhs_pat = ::scale::Decode::decode(&mut &bytes[..])
                             .unwrap();
 
                         #[allow(clippy::unnecessary_mut_passed)]
                         let call_output: <dyn #trait_name as ::obce::codegen::MethodDescription<#hash>>::Output = <#item as MockTrait #types>::#method_name(
                             &mut self.0
-                            #(, #input_bindings)*
+                            #(, #call_params)*
                         );
 
                         ::scale::Encode::encode_to(&call_output, output);

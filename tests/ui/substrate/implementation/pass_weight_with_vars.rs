@@ -26,7 +26,7 @@ where
     E: Ext<T = T>,
     <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
 {
-    #[obce(weight(dispatch = "crate::test_pallet::Pallet::<T>::test_method", args = "123, 456"))]
+    #[obce(weight(dispatch = "crate::test_pallet::Pallet::<T>::test_method", args = "val, 123"))]
     fn extension_method(&mut self, val: u64) {
         crate::test_pallet::Pallet::<T>::test_method(
             RawOrigin::Signed(self.env.ext().address().clone()).into(),

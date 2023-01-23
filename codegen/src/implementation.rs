@@ -24,10 +24,9 @@ use std::collections::HashMap;
 use crate::{
     format_err_spanned,
     utils::{
-        input_bindings,
-        input_bindings_tuple,
         into_u32,
         AttributeParser,
+        InputBindings,
     },
 };
 use itertools::Itertools;
@@ -46,7 +45,6 @@ use syn::{
     Expr,
     GenericArgument,
     Generics,
-    Ident,
     ImplItem,
     ItemImpl,
     Lit,
@@ -136,20 +134,21 @@ impl ChainExtensionImplementation {
 
                 let hash = into_u32(&method.sig.ident);
                 let method_name = &method.sig.ident;
-                let input_bindings = input_bindings(&method.sig.inputs);
-                let bindings_tuple = input_bindings_tuple(input_bindings.iter());
+
+                let input_bindings = InputBindings::from_iter(&method.sig.inputs);
+                let lhs_pat = input_bindings.lhs_pat(None);
+                let call_params = input_bindings.iter_call_params();
+
                 let weight_tokens = handle_weight_attribute(&input_bindings, obce_attrs.iter())?;
 
                 Result::<_, Error>::Ok(quote! {
                     <#dyn_trait as ::obce::codegen::MethodDescription<#hash>>::ID => {
-                        let #bindings_tuple = env.read_as_unbounded(len)?;
+                        let #lhs_pat = env.read_as_unbounded(len)?;
                         #weight_tokens
                         let mut context = ::obce::substrate::ExtensionContext::new(self, env);
                         let result = <_ as #trait_>::#method_name(
                             &mut context
-                            #(
-                                , #input_bindings
-                            )*
+                            #(, #call_params)*
                         );
                         // If result is `Result` and `Err` is critical, return from the `call`.
                         // Otherwise encode the result into the buffer.
@@ -301,7 +300,7 @@ fn is_subsequence<T: PartialEq + core::fmt::Debug>(src: &[T], search: &[T]) -> b
 }
 
 fn handle_weight_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(
-    input_bindings: &[Ident],
+    input_bindings: &InputBindings,
     iter: I,
 ) -> Result<Option<TokenStream>, Error> {
     let weight_params = iter.into_iter().find_map(|attr| {
@@ -359,21 +358,34 @@ fn handle_weight_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(
             .unwrap()
             .map(Punctuated::<_, Token![::]>::from_iter);
 
+        let compute_weight_params = input_bindings.to_punctuated_fnarg();
+        let compute_weight_args = input_bindings.iter_call_params();
+
         let dispatch_args = if let Some(args) = weight_params.get("args") {
             let parser = Punctuated::<Expr, Token![,]>::parse_terminated;
             parser.parse_str(args)?.to_token_stream()
         } else {
+            let raw_call_params = input_bindings.iter_raw_call_params();
+
+            // If no args were provided try to call the pallet method using default outer args.
             quote! {
-                #(#input_bindings,)*
+                #(#raw_call_params,)*
             }
         };
 
         let call_variant_name = format_ident!("new_call_variant_{}", method_name.last().unwrap().ident);
 
         Some(quote! {
-            let __call_variant = &#pallet_ns ::Call::<T>::#call_variant_name(#dispatch_args);
-            let __dispatch_info = <#pallet_ns ::Call<T> as ::obce::substrate::frame_support::dispatch::GetDispatchInfo>::get_dispatch_info(__call_variant);
-            env.charge_weight(__dispatch_info.weight)?;
+            #[allow(unused_variables)]
+            fn compute_weight<T>(#compute_weight_params) -> ::obce::substrate::frame_support::dispatch::Weight
+            where
+                T: #pallet_ns ::Config
+            {
+                let __call_variant = &#pallet_ns ::Call::<T>::#call_variant_name(#dispatch_args);
+                <#pallet_ns ::Call<T> as ::obce::substrate::frame_support::dispatch::GetDispatchInfo>::get_dispatch_info(__call_variant).weight
+            }
+
+            env.charge_weight(compute_weight::<T>(#(#compute_weight_args,)*))?;
         })
     } else {
         None

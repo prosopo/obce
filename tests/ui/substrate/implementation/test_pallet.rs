@@ -22,6 +22,7 @@ pub mod pallet {
         pub fn test_method(
             _origin: OriginFor<T>,
             val: u64,
+            another_val: u64
         ) -> DispatchResult {
             Ok(())
         }

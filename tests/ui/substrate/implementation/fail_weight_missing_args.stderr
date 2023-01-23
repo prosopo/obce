@@ -1,8 +1,34 @@
-error[E0061]: this function takes 1 argument but 0 arguments were supplied
+error[E0061]: this function takes 3 arguments but 2 arguments were supplied
+  --> tests/ui/substrate/implementation/fail_weight_missing_args.rs:31:9
+   |
+31 |           crate::test_pallet::Pallet::<T>::test_method(
+   |  _________^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^-
+32 | |             RawOrigin::Signed(self.env.ext().address().clone()).into(),
+33 | |             123
+34 | |         ).unwrap();
+   | |_________- an argument of type `u64` is missing
+   |
+note: associated function defined here
+  --> tests/ui/substrate/implementation/test_pallet.rs
+   |
+   |         pub fn test_method(
+   |                ^^^^^^^^^^^
+   |             _origin: OriginFor<T>,
+   |             ---------------------
+   |             val: u64,
+   |             --------
+   |             another_val: u64
+   |             ----------------
+help: provide the argument
+   |
+31 |         crate::test_pallet::Pallet::<T>::test_method(RawOrigin::Signed(self.env.ext().address().clone()).into(), 123, /* u64 */).unwrap();
+   |                                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+error[E0061]: this function takes 2 arguments but 0 arguments were supplied
   --> tests/ui/substrate/implementation/fail_weight_missing_args.rs:21:1
    |
 21 | #[obce::implementation]
-   | ^^^^^^^^^^^^^^^^^^^^^^^ an argument of type `u64` is missing
+   | ^^^^^^^^^^^^^^^^^^^^^^^ two arguments of type `u64` and `u64` are missing
    |
 note: associated function defined here
   --> tests/ui/substrate/implementation/test_pallet.rs
@@ -12,8 +38,10 @@ note: associated function defined here
    |             _origin: OriginFor<T>,
    |             val: u64,
    |             --------
+   |             another_val: u64
+   |             ----------------
    = note: this error originates in the attribute macro `obce::implementation` (in Nightly builds, run with -Z macro-backtrace for more info)
-help: provide the argument
+help: provide the arguments
    |
-21 | #[obce::implementation](/* u64 */)
-   |                        +++++++++++
+21 | #[obce::implementation](/* u64 */, /* u64 */)
+   |                        ++++++++++++++++++++++
