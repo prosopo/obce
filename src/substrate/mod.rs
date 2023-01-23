@@ -41,13 +41,17 @@ use pallet_contracts::chain_extension::{
 };
 use sp_runtime::DispatchError;
 
+/// Chain extension context that you can use with your implementations.
 pub struct ExtensionContext<'a, 'b, E: Ext, T, Extension>
 where
     T: SysConfig,
     E: Ext<T = T>,
     <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
 {
+    /// Chain extension environment.
     pub env: Environment<'a, 'b, E, BufInBufOutState>,
+
+    /// Custom chain extension storage.
     pub storage: &'a mut Extension,
 }
 
@@ -64,8 +68,14 @@ where
 
 pub type CriticalError = DispatchError;
 
-/// The trait allows filtering error on critical and non. Critical errors terminate the execution
-/// of the chain extension. Non-critical errors are propagated to the caller contract via buffer.
+/// The trait allows filtering error on critical and non-critical errors.
+///
+/// Critical errors terminate the execution of the chain extension, while
+/// non-critical errors are propagated to the caller contract via buffer.
 pub trait SupportCriticalError: Sized {
+    /// Try to convert an error to a critical one.
+    ///
+    /// Returns [`Ok`] if the conversion was successful (and the current
+    /// error should be qualified as critical), and [`Err`] otherwise.
     fn try_to_critical(self) -> Result<CriticalError, Self>;
 }
