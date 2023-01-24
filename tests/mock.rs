@@ -77,7 +77,7 @@ mod state_access {
     }
 }
 
-mod cross_method_state_limitations {
+mod cross_method_state {
     #[derive(Clone, Default)]
     pub struct State {
         call_count: u32,
@@ -102,7 +102,7 @@ mod cross_method_state_limitations {
         let mut contract = crate::simple_contract::SimpleContract::new();
         assert_eq!(contract.call_method(100, 200), 1);
         assert_eq!(contract.call_method(100, 200), 2);
-        assert_eq!(contract.call_another_method(100), 1);
+        assert_eq!(contract.call_another_method(100), 3);
     }
 }
 

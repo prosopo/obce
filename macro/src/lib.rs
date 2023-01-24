@@ -218,7 +218,7 @@ pub fn error(attrs: TokenStream, enum_item: TokenStream) -> TokenStream {
 /// # Description
 ///
 /// You can use [`#[obce::mock]`](macro@mock) to automatically generate `register_chain_extensions`
-/// function, which accepts a clonable context and automatically registers mocked chain extension methods
+/// function, which accepts a context and automatically registers mocked chain extension methods
 /// for off-chain ink! smart contract testing.
 ///
 /// ```ignore
@@ -269,11 +269,8 @@ pub fn error(attrs: TokenStream, enum_item: TokenStream) -> TokenStream {
 ///
 /// The item that you implement your definition trait for becomes your testing context.
 ///
-/// You will receive the same testing context when calling the same method multiple times,
+/// You will receive the same testing context when calling methods multiple times,
 /// thus it can be used as your chain extension testing state.
-///
-/// This behaviour does not apply to calls to different methods,
-/// since each method registration introduces a clone of your context.
 ///
 /// # General guidelines
 ///

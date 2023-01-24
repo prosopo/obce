@@ -110,7 +110,7 @@ pub fn generate(_: TokenStream, input: TokenStream) -> Result<TokenStream, Error
             let call_params = input_bindings.iter_call_params();
 
             quote! {
-                struct #proxy_name #types (#item);
+                struct #proxy_name #types (::std::rc::Rc<::std::cell::RefCell<#item>>);
 
                 impl #impls ::obce::ink_lang::env::test::ChainExtension for #proxy_name #types #proxy_where_clause {
                     fn func_id(&self) -> u32 {
@@ -120,6 +120,8 @@ pub fn generate(_: TokenStream, input: TokenStream) -> Result<TokenStream, Error
                     }
 
                     fn call(&mut self, mut input: &[u8], output: &mut Vec<u8>) -> u32 {
+                        let context = &mut *self.0.borrow_mut();
+
                         let bytes: Vec<u8> = ::scale::Decode::decode(&mut &input[..])
                             .unwrap();
 
@@ -128,7 +130,7 @@ pub fn generate(_: TokenStream, input: TokenStream) -> Result<TokenStream, Error
 
                         #[allow(clippy::unnecessary_mut_passed)]
                         let call_output: <dyn #trait_name as ::obce::codegen::MethodDescription<#hash>>::Output = <#item as MockTrait #types>::#method_name(
-                            &mut self.0
+                            context
                             #(, #call_params)*
                         );
 
@@ -138,16 +140,16 @@ pub fn generate(_: TokenStream, input: TokenStream) -> Result<TokenStream, Error
                     }
                 }
 
-                ::obce::ink_lang::env::test::register_chain_extension(#proxy_name(ctx.clone()));
+                ::obce::ink_lang::env::test::register_chain_extension(#proxy_name(wrapped_context.clone()));
             }
         });
 
     Ok(quote! {
-        #[cfg(feature = "ink")]
-        pub fn register_chain_extensions #types (ctx: #item)
-        where
-            #item: Clone
-        {
+        #[cfg(feature = "ink-std")]
+        pub fn register_chain_extensions #types (ctx: #item) {
+            #[allow(unused_variables)]
+            let wrapped_context = ::std::rc::Rc::new(::std::cell::RefCell::new(ctx));
+
             #mock_trait
 
             #mock_impl
