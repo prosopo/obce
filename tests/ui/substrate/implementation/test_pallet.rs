@@ -22,6 +22,14 @@ pub mod pallet {
         pub fn test_method(
             _origin: OriginFor<T>,
             val: u64,
+            another_val: u64
+        ) -> DispatchResult {
+            Ok(())
+        }
+
+        #[pallet::weight(T::WeightInfo::test(123))]
+        pub fn test_empty_method(
+            _origin: OriginFor<T>
         ) -> DispatchResult {
             Ok(())
         }

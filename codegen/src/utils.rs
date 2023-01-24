@@ -28,12 +28,13 @@ use quote::{
     quote,
 };
 use syn::{
-    punctuated::Punctuated,
     Attribute,
     FnArg,
     Ident,
     NestedMeta,
-    Token,
+    Pat,
+    PatType,
+    Type,
 };
 
 use crate::types::AttributeArgs;
@@ -98,25 +99,170 @@ where
     }
 }
 
-pub fn input_bindings(inputs: &Punctuated<FnArg, Token![,]>) -> Vec<syn::Ident> {
-    inputs
-        .iter()
-        .filter_map(|fn_arg| {
-            if let FnArg::Typed(pat) = fn_arg {
-                Some(pat)
-            } else {
-                None
-            }
-        })
-        .enumerate()
-        .map(|(n, _)| format_ident!("__ink_binding_{}", n))
-        .collect::<Vec<_>>()
+pub struct InputBindings<'a> {
+    bindings: Vec<&'a PatType>,
 }
 
-pub fn input_bindings_tuple<'a, I: Iterator<Item = &'a Ident> + ExactSizeIterator>(inputs: I) -> TokenStream {
-    match inputs.len() {
-        0 => quote! { _ : () },
-        1 => quote! { #( #inputs ),* },
-        _ => quote! { ( #( #inputs ),* ) },
+impl<'a> InputBindings<'a> {
+    /// Iterate over "special" bindings identifiers.
+    ///
+    /// For example, it converts `(one: u32, two: u32)` into `(__ink_binding_0, __ink_binding_1)`.
+    pub fn iter_call_params(&self) -> impl Iterator<Item = Ident> + ExactSizeIterator + '_ {
+        self.bindings
+            .iter()
+            .enumerate()
+            .map(|(n, _)| format_ident!("__ink_binding_{}", n))
+    }
+
+    /// Iterate over raw bindings patterns.
+    ///
+    /// The provided iterator makes no conversions from the inner values stored inside [`InputBindings`].
+    pub fn iter_raw_call_params(&self) -> impl Iterator<Item = &Pat> + ExactSizeIterator + '_ {
+        self.bindings.iter().map(|pat| &*pat.pat)
+    }
+
+    /// Create a LHS pattern from the input bindings.
+    ///
+    /// The returned [`TokenStream`] contains a pattern that is suitable for,
+    /// for example, `scale` decoding.
+    ///
+    /// You can also provide an optional type, that will be used to constrain
+    /// a pattern when it has `>= 1` bindings.
+    pub fn lhs_pat(&self, ty: Option<Type>) -> TokenStream {
+        let bindings = self.iter_call_params();
+        let ty = ty.map(|val| {
+            quote! {
+                : #val
+            }
+        });
+
+        match bindings.len() {
+            0 => quote! { _ : () },
+            1 => quote! { #( #bindings ),* #ty },
+            _ => quote! { ( #( #bindings ),* ) #ty },
+        }
+    }
+
+    /// Create a "mapping" from "special" identifiers to raw patterns.
+    pub fn raw_special_mapping(&self) -> TokenStream {
+        let lhs = self.bindings.iter().map(|val| &val.pat);
+
+        let rhs = self.iter_call_params();
+
+        quote! {
+            let (#(#lhs,)*) = (#(#rhs,)*);
+        }
+    }
+}
+
+impl<'a> FromIterator<&'a FnArg> for InputBindings<'a> {
+    fn from_iter<T: IntoIterator<Item = &'a FnArg>>(iter: T) -> Self {
+        let bindings = iter
+            .into_iter()
+            .filter_map(|fn_arg| {
+                if let FnArg::Typed(pat) = fn_arg {
+                    Some(pat)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        Self { bindings }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::iter;
+
+    use quote::{
+        format_ident,
+        quote,
+    };
+    use syn::{
+        parse::Parser,
+        parse2,
+        parse_quote,
+        punctuated::Punctuated,
+        FnArg,
+        Stmt,
+        Token,
+    };
+
+    use super::InputBindings;
+
+    #[test]
+    fn special_bindings_conversion() {
+        let parser = Punctuated::<FnArg, Token![,]>::parse_terminated;
+
+        let fn_args = parser
+            .parse2(quote! {
+                one: u32, two: u64, three: &'a str
+            })
+            .unwrap();
+
+        let input_bindings = InputBindings::from_iter(&fn_args);
+
+        assert_eq!(
+            input_bindings.iter_call_params().collect::<Vec<_>>(),
+            vec![
+                format_ident!("__ink_binding_0"),
+                format_ident!("__ink_binding_1"),
+                format_ident!("__ink_binding_2")
+            ]
+        );
+    }
+
+    #[test]
+    fn raw_special_mapping_empty() {
+        let input_bindings = InputBindings::from_iter(iter::empty());
+
+        assert_eq!(
+            parse2::<Stmt>(input_bindings.raw_special_mapping()).unwrap(),
+            parse_quote! {
+                let () = ();
+            }
+        );
+    }
+
+    #[test]
+    fn raw_special_mapping_one() {
+        let parser = Punctuated::<FnArg, Token![,]>::parse_terminated;
+
+        let fn_args = parser
+            .parse2(quote! {
+                one: u32
+            })
+            .unwrap();
+
+        let input_bindings = InputBindings::from_iter(&fn_args);
+
+        assert_eq!(
+            parse2::<Stmt>(input_bindings.raw_special_mapping()).unwrap(),
+            parse_quote! {
+                let (one,) = (__ink_binding_0,);
+            }
+        );
+    }
+
+    #[test]
+    fn raw_special_mapping_multiple() {
+        let parser = Punctuated::<FnArg, Token![,]>::parse_terminated;
+
+        let fn_args = parser
+            .parse2(quote! {
+                one: u32, two: u64, three: &'a str
+            })
+            .unwrap();
+
+        let input_bindings = InputBindings::from_iter(&fn_args);
+
+        assert_eq!(
+            parse2::<Stmt>(input_bindings.raw_special_mapping()).unwrap(),
+            parse_quote! {
+                let (one, two, three,) = (__ink_binding_0, __ink_binding_1, __ink_binding_2,);
+            }
+        );
     }
 }

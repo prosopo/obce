@@ -15,7 +15,7 @@ pub struct ChainExtension;
 
 #[obce::definition]
 pub trait ChainExtensionDefinition {
-    fn extension_method(&mut self, val: u64);
+    fn extension_method(&mut self, val: u64, another_val: u64);
 }
 
 #[obce::implementation]
@@ -27,10 +27,11 @@ where
     <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
 {
     #[obce(weight(dispatch = "crate::test_pallet::Pallet::<T>::test_method"))]
-    fn extension_method(&mut self, val: u64) {
+    fn extension_method(&mut self, val: u64, another_val: u64) {
         crate::test_pallet::Pallet::<T>::test_method(
             RawOrigin::Signed(self.env.ext().address().clone()).into(),
-            val
+            val,
+            another_val
         ).unwrap();
     }
 }
