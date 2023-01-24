@@ -77,6 +77,35 @@ mod state_access {
     }
 }
 
+mod cross_method_state_limitations {
+    #[derive(Clone, Default)]
+    pub struct State {
+        call_count: u32,
+    }
+
+    #[obce::mock]
+    impl crate::Trait for State {
+        fn method(&mut self, _: u32, _: u32) -> u32 {
+            self.call_count += 1;
+            self.call_count
+        }
+
+        fn another_method(&mut self, _: u32) -> u32 {
+            self.call_count += 1;
+            self.call_count
+        }
+    }
+
+    #[test]
+    fn call_contract() {
+        register_chain_extensions(State::default());
+        let mut contract = crate::simple_contract::SimpleContract::new();
+        assert_eq!(contract.call_method(100, 200), 1);
+        assert_eq!(contract.call_method(100, 200), 2);
+        assert_eq!(contract.call_another_method(100), 1);
+    }
+}
+
 mod internal_calls {
     #[obce::mock]
     impl crate::Trait for () {

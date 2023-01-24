@@ -20,13 +20,10 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 pub mod definition;
-mod error;
+pub mod error;
 mod implementation;
 pub mod mock;
 mod types;
 mod utils;
 
-pub use crate::{
-    error::ChainExtensionError,
-    implementation::ChainExtensionImplementation,
-};
+pub use crate::implementation::ChainExtensionImplementation;
