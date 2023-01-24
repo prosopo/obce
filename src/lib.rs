@@ -23,9 +23,12 @@
 
 #[cfg(feature = "ink")]
 pub mod ink_lang;
+
 #[cfg(feature = "substrate")]
 pub mod substrate;
 
+/// Automatically generated traits that provide the necessary information
+/// about the chain extension.
 pub mod codegen;
 
 pub use obce_macro::{

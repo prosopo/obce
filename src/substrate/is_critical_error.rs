@@ -24,6 +24,7 @@ use crate::substrate::{
     SupportCriticalError,
 };
 
+#[doc(hidden)]
 pub struct ToCriticalErr<T>(pub T);
 
 impl<T, E> ToCriticalErr<Result<T, E>>
@@ -48,9 +49,11 @@ where
     }
 }
 
+#[doc(hidden)]
 pub trait ToCriticalErrFallback<T> {
     fn try_to_critical_error(self) -> Result<T, CriticalError>;
 }
+
 impl<T> ToCriticalErrFallback<T> for ToCriticalErr<T> {
     #[inline]
     fn try_to_critical_error(self) -> Result<T, CriticalError> {
