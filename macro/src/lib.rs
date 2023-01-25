@@ -25,8 +25,8 @@ use proc_macro::TokenStream;
 
 use obce_codegen::{
     definition,
+    error,
     mock,
-    ChainExtensionError,
     ChainExtensionImplementation,
 };
 
@@ -122,6 +122,10 @@ pub fn definition(attrs: TokenStream, trait_item: TokenStream) -> TokenStream {
 /// arguments are different, you can use `args` to override them:
 /// `#[obce(weight(dispatch = "pallet_example::Pallet::<T>::my_call", args = "some_val,123"))]`.
 ///
+/// You can also use `#[obce(weight(expr = ...))]` to charge weight without pallet calls.
+/// In this case, you can simply provide any expression which returns `Weight`:
+/// `#[obce(weight(expr = "Weight::from_ref_time(some_val)"))]`.
+///
 /// ## Usage example
 ///
 /// ```ignore
@@ -203,12 +207,135 @@ pub fn implementation(attrs: TokenStream, impl_item: TokenStream) -> TokenStream
 /// Only one enum variant can be marked as `#[obce(critical)]`.
 #[proc_macro_attribute]
 pub fn error(attrs: TokenStream, enum_item: TokenStream) -> TokenStream {
-    match ChainExtensionError::generate(attrs.into(), enum_item.into()) {
+    match error::generate(attrs.into(), enum_item.into()) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
     }
 }
 
+/// Chain extension mocking utility.
+///
+/// # Description
+///
+/// You can use [`#[obce::mock]`](macro@mock) to automatically generate `register_chain_extensions`
+/// function, which accepts a context and automatically registers mocked chain extension methods
+/// for off-chain ink! smart contract testing.
+///
+/// ```ignore
+/// // ink! smart contract definition is omitted.
+///
+/// #[obce::definition]
+/// pub trait MyChainExtension {
+///     fn test_method(&mut self, val: u32, another_val: u32) -> u32;
+/// }
+///
+/// #[obce::mock]
+/// impl MyChainExtension for () {
+///     fn test_method(&mut self, val: u32, another_val: u32) -> u32 {
+///         val + another_val
+///     }
+/// }
+///
+/// #[test]
+/// fn call_contract() {
+///     register_chain_extensions(());
+///     let mut contract = SimpleContract::new();
+///     assert_eq!(contract.call_test_method(100, 200), 300);
+/// }
+/// ```
+///
+/// When using [`#[obce::mock]`](macro@mock), you are not required to fill every single
+/// method for testing. Glue code to register chain extension methods will only apply to
+/// those methods, that you listed in a mock macro call:
+///
+/// ```ignore
+/// #[obce::definition]
+/// pub trait MyChainExtension {
+///     fn first_method(&mut self, val: u32) -> u32;
+///     fn second_method(&mut self) -> u64;
+/// }
+///
+/// #[obce::mock]
+/// impl MyChainExtension for () {
+///     fn first_method(&mut self, val: u32) -> u32 {
+///         // ...
+///     }
+///
+///     // second_method is not required to be present here
+/// }
+/// ```
+///
+/// # Context
+///
+/// The item that you implement your definition trait for becomes your testing context.
+///
+/// You will receive the same testing context when calling methods multiple times,
+/// thus it can be used as your chain extension testing state.
+///
+/// # General guidelines
+///
+/// Since [`#[obce::mock]`](macro@mock) is designed for off-chain testing, you are
+/// limited by off-chain testing facilities that [ink! library provides](https://use.ink/basics/contract-testing).
+///
+/// # Complete example
+///
+/// ```ignore
+/// #[obce::definition(id = 123)]
+/// pub trait ChainExtension {
+///     fn method(&mut self, val: u32, another_val: u32) -> u32;
+///
+///     #[obce(id = 456)]
+///     fn another_method(&mut self, val: u32) -> u32;
+/// }
+///
+/// struct MyChainExtension;
+///
+/// impl ChainExtension for MyChainExtension {}
+///
+/// #[ink::contract]
+/// mod simple_contract {
+///     use crate::{
+///         ChainExtension,
+///         MyChainExtension,
+///     };
+///
+///     #[ink(storage)]
+///     pub struct SimpleContract {}
+///
+///     impl SimpleContract {
+///         #[ink(constructor)]
+///         pub fn new() -> Self {
+///             SimpleContract {}
+///         }
+///
+///         #[ink(message)]
+///         pub fn call_method(&mut self, val: u32, another_val: u32) -> u32 {
+///             MyChainExtension.method(val, another_val)
+///         }
+///
+///         #[ink(message)]
+///         pub fn call_another_method(&mut self, val: u32) -> u32 {
+///             MyChainExtension.another_method(val)
+///         }
+///     }
+/// }
+///
+/// mod simple_test {
+///     #[obce::mock]
+///     impl crate::ChainExtension for () {
+///         fn method(&mut self, val: u32, another_val: u32) -> u32 {
+///             val + another_val
+///         }
+///     }
+///
+///     #[test]
+///     fn call_contract() {
+///         register_chain_extensions(());
+///         let mut contract = crate::simple_contract::SimpleContract::new();
+///         assert_eq!(contract.call_method(100, 200), 300);
+///     }
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn mock(attrs: TokenStream, enum_item: TokenStream) -> TokenStream {
     match mock::generate(attrs.into(), enum_item.into()) {
