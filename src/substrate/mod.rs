@@ -37,8 +37,8 @@ use pallet_contracts::chain_extension::{
     BufInBufOutState,
     Environment,
     Ext,
-    UncheckedFrom,
 };
+use sp_core::crypto::UncheckedFrom;
 use sp_runtime::DispatchError;
 
 /// Chain extension context that you can use with your implementations.
