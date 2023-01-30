@@ -13,7 +13,6 @@ where
     T: SysConfig + ContractConfig + crate::test_pallet::Config,
     <<T as SysConfig>::Lookup as StaticLookup>::Source: From<<T as SysConfig>::AccountId>,
     E: Ext<T = T>,
-    <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
 {
     #[obce(weight(dispatch = "test_method"))]
     fn extension_method(&mut self) {
