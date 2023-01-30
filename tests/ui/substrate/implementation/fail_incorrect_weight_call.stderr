@@ -1,5 +1,5 @@
 error: expected literal
-  --> tests/ui/substrate/implementation/fail_incorrect_weight_call.rs:18:30
+  --> tests/ui/substrate/implementation/fail_incorrect_weight_call.rs:17:30
    |
-18 |     #[obce(weight(dispatch = crate::test_pallet::Pallet::<T>::test_method))]
+17 |     #[obce(weight(dispatch = crate::test_pallet::Pallet::<T>::test_method))]
    |                              ^^^^^

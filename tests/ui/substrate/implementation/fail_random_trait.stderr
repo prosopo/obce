@@ -1,7 +1,7 @@
 error[E0277]: the trait bound `dyn ChainExtensionDefinition: ExtensionDescription` is not satisfied
-  --> tests/ui/substrate/implementation/fail_random_trait.rs:16:1
+  --> tests/ui/substrate/implementation/fail_random_trait.rs:15:1
    |
-16 | #[obce::implementation]
+15 | #[obce::implementation]
    | ^^^^^^^^^^^^^^^^^^^^^^^ the trait `ExtensionDescription` is not implemented for `dyn ChainExtensionDefinition`
    |
    = note: this error originates in the attribute macro `obce::implementation` (in Nightly builds, run with -Z macro-backtrace for more info)

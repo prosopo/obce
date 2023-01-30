@@ -38,7 +38,6 @@ use pallet_contracts::chain_extension::{
     Environment,
     Ext,
 };
-use sp_core::crypto::UncheckedFrom;
 use sp_runtime::DispatchError;
 
 /// Chain extension context that you can use with your implementations.
@@ -46,7 +45,6 @@ pub struct ExtensionContext<'a, 'b, E: Ext, T, Extension>
 where
     T: SysConfig,
     E: Ext<T = T>,
-    <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
 {
     /// Chain extension environment.
     pub env: Environment<'a, 'b, E, BufInBufOutState>,
@@ -59,7 +57,6 @@ impl<'a, 'b, E: Ext, T, Extension> ExtensionContext<'a, 'b, E, T, Extension>
 where
     T: SysConfig,
     E: Ext<T = T>,
-    <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
 {
     pub fn new(storage: &'a mut Extension, env: Environment<'a, 'b, E, BufInBufOutState>) -> Self {
         ExtensionContext { env, storage }

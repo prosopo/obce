@@ -18,6 +18,7 @@ pub mod pallet {
     #[pallet::call]
     impl<T: Config> Pallet<T> {
         #[allow(unused_variables)]
+        #[pallet::call_index(0)]
         #[pallet::weight(T::WeightInfo::test(*val))]
         pub fn test_method(
             _origin: OriginFor<T>,
@@ -27,6 +28,7 @@ pub mod pallet {
             Ok(())
         }
 
+        #[pallet::call_index(1)]
         #[pallet::weight(T::WeightInfo::test(123))]
         pub fn test_empty_method(
             _origin: OriginFor<T>
