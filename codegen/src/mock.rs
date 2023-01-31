@@ -145,7 +145,6 @@ pub fn generate(_: TokenStream, input: TokenStream) -> Result<TokenStream, Error
         });
 
     Ok(quote! {
-        #[cfg(feature = "ink-std")]
         pub fn register_chain_extensions #types (ctx: #item) {
             #[allow(unused_variables)]
             let wrapped_context = ::std::rc::Rc::new(::std::cell::RefCell::new(ctx));
