@@ -11,8 +11,27 @@ As in the original example, this one provides you with:
 
 ### Substrate
 
-1. Copy `chain-extension` crate into your project and add it as a workspace member
-2. Change `pallet-contracts` `Config` to use the chain extension like so:
+1. Copy `chain-extension` crate into your project and add it as a workspace member.
+2. Add `rand-extension` to `runtime/Cargo.toml`:
+
+```toml
+rand-extension = { path = "../chain-extension", default-features = false, features = ["substrate"] }
+```
+
+Also, add `rand-extension/substrate-std` to feature list that is activated
+when `std` feature is active:
+
+```toml
+[features]
+# ...
+
+std = [
+    # ...
+    "rand-extension/substrate-std",
+]
+```
+
+3. Change `pallet_contracts::Config` to use the chain extension like so:
 
 ```rust
 impl pallet_contracts::Config for Runtime {
