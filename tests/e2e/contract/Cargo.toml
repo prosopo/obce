@@ -14,7 +14,6 @@ ink_env = { git = "https://github.com/paritytech/ink", rev = "4655a8b4413cb50cbc
 ink_storage = { git = "https://github.com/paritytech/ink", rev = "4655a8b4413cb50cbc38d1b7c173ad426ab06cde", default-features = false }
 ink = { git = "https://github.com/paritytech/ink", rev = "4655a8b4413cb50cbc38d1b7c173ad426ab06cde", default-features = false }
 
-openbrush = { git = "https://github.com/727-Ventures/openbrush-contracts", default-features = false }
 chain-extension = { path = "../../../obce-test-environment/chain-extension", default-features = false, features = ["ink"] }
 
 [lib]
@@ -34,6 +33,5 @@ std = [
     "scale/std",
     "scale-info/std",
     "chain-extension/ink-std",
-    "openbrush/std"
 ]
 ink-as-dependency = []
