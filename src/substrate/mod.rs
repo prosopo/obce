@@ -32,37 +32,113 @@ pub use sp_core;
 pub use sp_runtime;
 pub use sp_std;
 
+use core::marker::PhantomData;
+
+use frame_support::weights::Weight;
 use frame_system::Config as SysConfig;
 use pallet_contracts::chain_extension::{
     BufInBufOutState,
     Environment,
     Ext,
+    RetVal,
     UncheckedFrom,
 };
+use scale::Decode;
 use sp_runtime::DispatchError;
 
-/// Chain extension context that you can use with your implementations.
-pub struct ExtensionContext<'a, 'b, E: Ext, T, Extension>
+pub trait ChainExtensionEnvironment<E, T> {
+    type ChargedAmount;
+
+    fn func_id(&self) -> u16;
+
+    fn ext_id(&self) -> u16;
+
+    fn in_len(&self) -> u32;
+
+    fn read_as_unbounded<U: Decode>(&mut self, len: u32) -> Result<U, CriticalError>;
+
+    fn write(&mut self, buffer: &[u8], allow_skip: bool, weight_per_byte: Option<Weight>) -> Result<(), CriticalError>;
+
+    fn ext(&mut self) -> &mut E;
+
+    fn charge_weight(&mut self, amount: Weight) -> Result<Self::ChargedAmount, CriticalError>;
+
+    fn adjust_weight(&mut self, charged: Self::ChargedAmount, actual_weight: Weight);
+}
+
+impl<'a, 'b, E, T> ChainExtensionEnvironment<E, T> for Environment<'a, 'b, E, BufInBufOutState>
 where
     T: SysConfig,
     E: Ext<T = T>,
     <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
 {
+    type ChargedAmount = pallet_contracts::ChargedAmount;
+
+    fn func_id(&self) -> u16 {
+        Environment::func_id(self)
+    }
+
+    fn ext_id(&self) -> u16 {
+        Environment::ext_id(self)
+    }
+
+    fn in_len(&self) -> u32 {
+        Environment::in_len(self)
+    }
+
+    fn read_as_unbounded<U: Decode>(&mut self, len: u32) -> Result<U, CriticalError> {
+        Environment::read_as_unbounded(self, len)
+    }
+
+    fn write(&mut self, buffer: &[u8], allow_skip: bool, weight_per_byte: Option<Weight>) -> Result<(), CriticalError> {
+        Environment::write(self, buffer, allow_skip, weight_per_byte)
+    }
+
+    fn ext(&mut self) -> &mut E {
+        Environment::ext(self)
+    }
+
+    fn charge_weight(&mut self, amount: Weight) -> Result<Self::ChargedAmount, CriticalError> {
+        Environment::charge_weight(self, amount)
+    }
+
+    fn adjust_weight(&mut self, charged: Self::ChargedAmount, actual_weight: Weight) {
+        Environment::adjust_weight(self, charged, actual_weight)
+    }
+}
+
+pub trait CallableChainExtension<E, T, Env> {
+    fn call(&mut self, env: Env) -> Result<RetVal, CriticalError>;
+}
+
+/// Chain extension context that you can use with your implementations.
+pub struct ExtensionContext<'a, E, T, Env: ChainExtensionEnvironment<E, T>, Extension> {
     /// Chain extension environment.
-    pub env: Environment<'a, 'b, E, BufInBufOutState>,
+    pub env: Env,
 
     /// Custom chain extension storage.
     pub storage: &'a mut Extension,
+
+    pre_charged: Option<Env::ChargedAmount>,
+
+    _ghost: PhantomData<(E, T)>,
 }
 
-impl<'a, 'b, E: Ext, T, Extension> ExtensionContext<'a, 'b, E, T, Extension>
+impl<'a, E, T, Env, Extension> ExtensionContext<'a, E, T, Env, Extension>
 where
-    T: SysConfig,
-    E: Ext<T = T>,
-    <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
+    Env: ChainExtensionEnvironment<E, T>,
 {
-    pub fn new(storage: &'a mut Extension, env: Environment<'a, 'b, E, BufInBufOutState>) -> Self {
-        ExtensionContext { env, storage }
+    pub fn new(storage: &'a mut Extension, env: Env, pre_charged: Option<Env::ChargedAmount>) -> Self {
+        ExtensionContext {
+            env,
+            storage,
+            pre_charged,
+            _ghost: Default::default(),
+        }
+    }
+
+    pub fn pre_charged(&mut self) -> Option<Env::ChargedAmount> {
+        self.pre_charged.take()
     }
 }
 

@@ -6,6 +6,7 @@ use obce::substrate::{
     },
     sp_core::crypto::UncheckedFrom,
     sp_runtime::traits::StaticLookup,
+    ChainExtensionEnvironment,
     ExtensionContext
 };
 
@@ -14,12 +15,13 @@ pub struct ChainExtension;
 pub trait ChainExtensionDefinition {}
 
 #[obce::implementation]
-impl<'a, 'b, E, T> ChainExtensionDefinition for ExtensionContext<'a, 'b, E, T, ChainExtension>
+impl<'a, E, T, Env> ChainExtensionDefinition for ExtensionContext<'a, E, T, Env, ChainExtension>
 where
     T: SysConfig + ContractConfig,
     <<T as SysConfig>::Lookup as StaticLookup>::Source: From<<T as SysConfig>::AccountId>,
     E: Ext<T = T>,
     <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
+    Env: ChainExtensionEnvironment<E, T>
 {
 }
 

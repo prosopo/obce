@@ -92,21 +92,28 @@ impl ChainExtensionImplementation {
 
     #[allow(non_snake_case)]
     fn chain_extension_trait_impl(mut impl_item: ItemImpl) -> Result<TokenStream, Error> {
-        let context = Self::split_generics(&impl_item)?;
+        let context = FilteredGenerics::try_from(&impl_item)?;
+
+        let mut callable_generics = impl_item.generics.clone();
+        callable_generics = filter_generics(callable_generics, &context.lt1);
+        let (callable_impls, _, callable_where) = callable_generics.split_for_impl();
+
         let mut main_generics = impl_item.generics.clone();
-        main_generics = filter_generics(main_generics, &context.lifetime1);
-        main_generics = filter_generics(main_generics, &context.lifetime2);
+        main_generics = filter_generics(main_generics, &context.lt1);
         main_generics = filter_generics(main_generics, &context.env);
+        main_generics = filter_generics(main_generics, &context.obce_env);
         let (main_impls, _, main_where) = main_generics.split_for_impl();
 
         let mut call_generics = impl_item.generics.clone();
-        call_generics = filter_generics(call_generics, &context.lifetime1);
-        call_generics = filter_generics(call_generics, &context.lifetime2);
+        call_generics = filter_generics(call_generics, &context.lt1);
+        call_generics = filter_generics(call_generics, &context.obce_env);
         let (_, _, call_where) = call_generics.split_for_impl();
 
         let T = context.substrate;
         let E = context.env;
-        let extension = context.extension;
+        let Env = context.obce_env;
+        let extension = context.ext;
+
         let namespace = quote! { ::obce::substrate::pallet_contracts::chain_extension:: };
         let trait_;
         let dyn_trait;
@@ -139,13 +146,34 @@ impl ChainExtensionImplementation {
                 let lhs_pat = input_bindings.lhs_pat(None);
                 let call_params = input_bindings.iter_call_params();
 
-                let weight_tokens = handle_weight_attribute(&input_bindings, obce_attrs.iter())?;
+                let (weight_tokens, pre_charge) = handle_weight_attribute(&input_bindings, obce_attrs.iter())?;
+
+                let (read_with_charge, pre_charge_arg) = if pre_charge {
+                    (
+                        quote! {
+                            let pre_charged = #weight_tokens;
+                            let #lhs_pat = env.read_as_unbounded(len)?;
+                        },
+                        quote! {
+                            Some(pre_charged)
+                        },
+                    )
+                } else {
+                    (
+                        quote! {
+                            let #lhs_pat = env.read_as_unbounded(len)?;
+                            #weight_tokens;
+                        },
+                        quote! {
+                            None
+                        },
+                    )
+                };
 
                 Result::<_, Error>::Ok(quote! {
                     <#dyn_trait as ::obce::codegen::MethodDescription<#hash>>::ID => {
-                        let #lhs_pat = env.read_as_unbounded(len)?;
-                        #weight_tokens
-                        let mut context = ::obce::substrate::ExtensionContext::new(self, env);
+                        #read_with_charge
+                        let mut context = ::obce::substrate::ExtensionContext::new(self, env, #pre_charge_arg);
                         let result = <_ as #trait_>::#method_name(
                             &mut context
                             #(, #call_params)*
@@ -160,12 +188,8 @@ impl ChainExtensionImplementation {
             .try_collect()?;
 
         Ok(quote! {
-            impl #main_impls #namespace ChainExtension<#T> for #extension #main_where {
-                fn call<#E>(&mut self, env: #namespace Environment<#E, #namespace InitState>)
-                    -> ::core::result::Result<#namespace RetVal, ::obce::substrate::sp_runtime::DispatchError>
-                    #call_where
-                {
-                    let mut env = env.buf_in_buf_out();
+            impl #callable_impls ::obce::substrate::CallableChainExtension<#E, #T, #Env> for #extension #callable_where {
+                fn call(&mut self, mut env: #Env) -> ::core::result::Result<#namespace RetVal, ::obce::substrate::sp_runtime::DispatchError> {
                     let len = env.in_len();
 
                     match env.func_id() {
@@ -179,72 +203,70 @@ impl ChainExtensionImplementation {
                 }
             }
 
+            impl #main_impls #namespace ChainExtension<#T> for #extension #main_where {
+                fn call<#E>(&mut self, env: #namespace Environment<#E, #namespace InitState>)
+                    -> ::core::result::Result<#namespace RetVal, ::obce::substrate::sp_runtime::DispatchError>
+                    #call_where
+                {
+                    <#extension as ::obce::substrate::CallableChainExtension<#E, #T, _>>::call(self, env.buf_in_buf_out())
+                }
+            }
+
             impl #main_impls #namespace RegisteredChainExtension<#T> for #extension #main_where {
                 const ID: ::core::primitive::u16 = <#dyn_trait as ::obce::codegen::ExtensionDescription>::ID;
             }
         })
     }
-
-    fn split_generics(impl_item: &ItemImpl) -> Result<ExtensionContext, Error> {
-        let lifetime1;
-        let lifetime2;
-        let env_generic;
-        let substrate;
-        let extension_ty;
-
-        let wrong_type = Err(format_err_spanned!(
-            impl_item.self_ty,
-            "the type should be `ExtensionContext`",
-        ));
-        if let Type::Path(path) = impl_item.self_ty.as_ref() {
-            if let Some(extension) = path.path.segments.last() {
-                if let PathArguments::AngleBracketed(generic_args) = &extension.arguments {
-                    if generic_args.args.len() == 5 {
-                        lifetime1 = generic_args.args[0].clone();
-                        lifetime2 = generic_args.args[1].clone();
-                        env_generic = generic_args.args[2].clone();
-                        substrate = generic_args.args[3].clone();
-                        extension_ty = generic_args.args[4].clone();
-                    } else {
-                        return Err(format_err_spanned!(
-                            extension.arguments,
-                            "`ExtensionContext` should have 5 generics as `<'a, 'b, E, T, Extension>`",
-                        ))
-                    }
-                } else {
-                    return Err(format_err_spanned!(
-                        extension.arguments,
-                        "`ExtensionContext` should have `<'a, 'b, E, T, Extension>`",
-                    ))
-                }
-            } else {
-                return wrong_type
-            }
-        } else {
-            return wrong_type
-        }
-
-        Ok(ExtensionContext {
-            lifetime1,
-            lifetime2,
-            substrate,
-            env: env_generic,
-            extension: extension_ty,
-        })
-    }
 }
 
-struct ExtensionContext {
-    // Lifetime `'a`
-    lifetime1: GenericArgument,
-    // Lifetime `'b`
-    lifetime2: GenericArgument,
-    // Generic `E`
+struct FilteredGenerics {
+    lt1: GenericArgument,
     env: GenericArgument,
-    // Generic `T`
     substrate: GenericArgument,
-    // Generic `Extension`
-    extension: GenericArgument,
+    obce_env: GenericArgument,
+    ext: GenericArgument,
+}
+
+impl<'a> TryFrom<&'a ItemImpl> for FilteredGenerics {
+    type Error = Error;
+
+    fn try_from(impl_item: &'a ItemImpl) -> Result<Self, Self::Error> {
+        let Type::Path(path) = impl_item.self_ty.as_ref() else {
+            return Err(format_err_spanned!(
+                impl_item,
+                "the type should be `ExtensionContext`"
+            ));
+        };
+
+        let Some(extension) = path.path.segments.last() else {
+            return Err(format_err_spanned!(
+                path,
+                "the type should be `ExtensionContext`"
+            ));
+        };
+
+        let PathArguments::AngleBracketed(generic_args) = &extension.arguments else {
+            return Err(format_err_spanned!(
+                path,
+                "`ExtensionContext` should have `<'a, E, T, Env, Extension>`"
+            ));
+        };
+
+        let (lt1, env, substrate, obce_env, ext) = generic_args.args.iter().cloned().next_tuple().ok_or_else(|| {
+            format_err_spanned!(
+                generic_args,
+                "`ExtensionContext` should have `<'a, E, T, Env, Extension>`"
+            )
+        })?;
+
+        Ok(Self {
+            lt1,
+            env,
+            substrate,
+            obce_env,
+            ext,
+        })
+    }
 }
 
 fn filter_generics(mut generics: Generics, filter: &GenericArgument) -> Generics {
@@ -302,7 +324,7 @@ fn is_subsequence<T: PartialEq + core::fmt::Debug>(src: &[T], search: &[T]) -> b
 fn handle_weight_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(
     input_bindings: &InputBindings,
     iter: I,
-) -> Result<Option<TokenStream>, Error> {
+) -> Result<(Option<TokenStream>, bool), Error> {
     let weight_params = iter.into_iter().find_map(|attr| {
         let NestedMeta::Meta(Meta::List(list)) = attr else {
             return None;
@@ -317,15 +339,7 @@ fn handle_weight_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(
             .iter()
             .filter_map(|param| {
                 match param {
-                    NestedMeta::Meta(Meta::NameValue(value)) => {
-                        Some((
-                            value.path.get_ident()?.to_string(),
-                            match &value.lit {
-                                Lit::Str(st) => st.value(),
-                                _ => return None,
-                            },
-                        ))
-                    }
+                    NestedMeta::Meta(Meta::NameValue(value)) => Some((value.path.get_ident()?.to_string(), &value.lit)),
                     _ => None,
                 }
             })
@@ -335,17 +349,42 @@ fn handle_weight_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(
     });
 
     if let Some((weight_params, attr)) = weight_params {
-        if let Some(dispatch_path) = weight_params.get("dispatch") {
-            let dispatch_args = weight_params.get("args").map(|val| &**val);
+        if let Some(Lit::Str(dispatch_path)) = weight_params.get("dispatch") {
+            let dispatch_args = weight_params
+                .get("args")
+                .map(|val| {
+                    match val {
+                        Lit::Str(dispatch_args) => Ok(dispatch_args.value()),
+                        _ => Err(format_err_spanned!(val, "expected string literal")),
+                    }
+                })
+                .transpose()?;
 
-            Ok(Some(handle_dispatch_weight(
-                attr,
-                input_bindings,
-                dispatch_path,
-                dispatch_args,
-            )?))
-        } else if let Some(expr) = weight_params.get("expr") {
-            Ok(Some(handle_expr_weight(input_bindings, expr)?))
+            Ok((
+                Some(handle_dispatch_weight(
+                    attr,
+                    input_bindings,
+                    &dispatch_path.value(),
+                    dispatch_args.as_deref(),
+                )?),
+                false,
+            ))
+        } else if let Some(Lit::Str(expr)) = weight_params.get("expr") {
+            let pre_charge = weight_params
+                .get("pre_charge")
+                .map(|val| {
+                    match val {
+                        Lit::Bool(pre_charge) => Ok(pre_charge.value()),
+                        _ => Err(format_err_spanned!(val, "expected boolean literal")),
+                    }
+                })
+                .transpose()?
+                .unwrap_or(false);
+
+            Ok((
+                Some(handle_expr_weight(input_bindings, &expr.value(), pre_charge)?),
+                pre_charge,
+            ))
         } else {
             Err(format_err_spanned!(
                 attr,
@@ -353,19 +392,23 @@ fn handle_weight_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(
             ))
         }
     } else {
-        Ok(None)
+        Ok((None, false))
     }
 }
 
-fn handle_expr_weight(input_bindings: &InputBindings, expr: &str) -> Result<TokenStream, Error> {
+fn handle_expr_weight(input_bindings: &InputBindings, expr: &str, pre_charge: bool) -> Result<TokenStream, Error> {
     let expr = parse_str::<Expr>(expr)?;
 
-    let raw_map = input_bindings.raw_special_mapping();
+    let raw_map = if pre_charge {
+        quote! {}
+    } else {
+        input_bindings.raw_special_mapping()
+    };
 
     Ok(quote! {{
         #[allow(unused_variables)]
         #raw_map
-        env.charge_weight(#expr.into())?;
+        env.charge_weight(#expr)?
     }})
 }
 
@@ -402,7 +445,7 @@ fn handle_dispatch_weight(
 
         // If no args were provided try to call the pallet method using default outer args.
         quote! {
-            #(#raw_call_params,)*
+            #(*#raw_call_params,)*
         }
     };
 
@@ -415,6 +458,6 @@ fn handle_dispatch_weight(
         #raw_map
         let __call_variant = &#pallet_ns ::Call::<T>::#call_variant_name(#dispatch_args);
         let __dispatch_info = <#pallet_ns ::Call<T> as ::obce::substrate::frame_support::dispatch::GetDispatchInfo>::get_dispatch_info(__call_variant);
-        env.charge_weight(__dispatch_info.weight)?;
+        env.charge_weight(__dispatch_info.weight)?
     }})
 }

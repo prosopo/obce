@@ -150,7 +150,7 @@ impl<'a> InputBindings<'a> {
         let rhs = self.iter_call_params();
 
         quote! {
-            let (#(#lhs,)*) = (#(#rhs,)*);
+            let (#(#lhs,)*) = (#(&#rhs,)*);
         }
     }
 }
