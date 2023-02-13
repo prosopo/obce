@@ -39,6 +39,7 @@ use quote::{
 use syn::{
     parse::Parser,
     parse2,
+    parse_quote,
     parse_str,
     punctuated::Punctuated,
     Error,
@@ -94,27 +95,39 @@ impl ChainExtensionImplementation {
     fn chain_extension_trait_impl(mut impl_item: ItemImpl) -> Result<TokenStream, Error> {
         let context = FilteredGenerics::try_from(&impl_item)?;
 
-        let mut callable_generics = impl_item.generics.clone();
-        callable_generics = filter_generics(callable_generics, &context.lt1);
-        let (callable_impls, _, callable_where) = callable_generics.split_for_impl();
-
-        let mut main_generics = impl_item.generics.clone();
-        main_generics = filter_generics(main_generics, &context.lt1);
-        main_generics = filter_generics(main_generics, &context.env);
-        main_generics = filter_generics(main_generics, &context.obce_env);
-        let (main_impls, _, main_where) = main_generics.split_for_impl();
-
-        let mut call_generics = impl_item.generics.clone();
-        call_generics = filter_generics(call_generics, &context.lt1);
-        call_generics = filter_generics(call_generics, &context.obce_env);
-        let (_, _, call_where) = call_generics.split_for_impl();
+        let namespace = quote! { ::obce::substrate::pallet_contracts::chain_extension:: };
 
         let T = context.substrate;
         let E = context.env;
         let Env = context.obce_env;
         let extension = context.ext;
 
-        let namespace = quote! { ::obce::substrate::pallet_contracts::chain_extension:: };
+        let mut callable_generics = impl_item.generics.clone();
+        callable_generics = filter_generics(callable_generics, &context.lt1);
+        let (callable_impls, _, callable_where) = callable_generics.split_for_impl();
+
+        let mut main_generics = impl_item.generics.clone();
+        main_generics = filter_generics(main_generics, &context.lt1);
+        main_generics = filter_generics(main_generics, &E);
+        main_generics = filter_generics(main_generics, &Env);
+        let (main_impls, _, main_where) = main_generics.split_for_impl();
+
+        let mut call_generics = impl_item.generics.clone();
+        call_generics = filter_generics(call_generics, &context.lt1);
+        call_generics = filter_generics(call_generics, &Env);
+
+        if let Some(where_clause) = &mut call_generics.where_clause {
+            where_clause.predicates.push(parse_quote! {
+                #E: #namespace Ext<T = #T>
+            });
+        } else {
+            call_generics.where_clause = Some(parse_quote! {
+                where #E: #namespace Ext<T = #T>
+            });
+        }
+
+        let (_, _, call_where) = call_generics.split_for_impl();
+
         let trait_;
         let dyn_trait;
         if let Some((_, path, _)) = impl_item.trait_ {
@@ -170,6 +183,28 @@ impl ChainExtensionImplementation {
                     )
                 };
 
+                let handle_ret_val = obce_attrs.iter().any(|attr| {
+                    if let NestedMeta::Meta(Meta::Path(path)) = attr {
+                        if let Some(ident) = path.get_ident() {
+                            return ident == "ret_val"
+                        }
+                    }
+
+                    false
+                });
+
+                let ret_val_handler = if handle_ret_val {
+                    quote! {
+                        if let Err(error) = result {
+                            if let Ok(ret_val) = error.try_into() {
+                                return Ok(ret_val);
+                            }
+                        }
+                    }
+                } else {
+                    quote! {}
+                };
+
                 Result::<_, Error>::Ok(quote! {
                     <#dyn_trait as ::obce::codegen::MethodDescription<#hash>>::ID => {
                         #read_with_charge
@@ -179,8 +214,11 @@ impl ChainExtensionImplementation {
                             #(, #call_params)*
                         );
                         // If result is `Result` and `Err` is critical, return from the `call`.
-                        // Otherwise encode the result into the buffer.
+                        // Otherwise, try to convert result to RetVal, and return it or encode the result into the buffer.
                         let result = ::obce::to_critical_error!(result)?;
+
+                        #ret_val_handler
+
                         <_ as ::scale::Encode>::using_encoded(&result, |w| context.env.write(w, true, None))?;
                     },
                 })

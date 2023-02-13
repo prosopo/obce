@@ -107,6 +107,45 @@ where
     }
 }
 
+impl<E, T, Env> ChainExtensionEnvironment<E, T> for &mut Env
+where
+    Env: ChainExtensionEnvironment<E, T>,
+{
+    type ChargedAmount = Env::ChargedAmount;
+
+    fn func_id(&self) -> u16 {
+        <Env as ChainExtensionEnvironment<E, T>>::func_id(self)
+    }
+
+    fn ext_id(&self) -> u16 {
+        <Env as ChainExtensionEnvironment<E, T>>::ext_id(self)
+    }
+
+    fn in_len(&self) -> u32 {
+        <Env as ChainExtensionEnvironment<E, T>>::in_len(self)
+    }
+
+    fn read_as_unbounded<U: Decode>(&mut self, len: u32) -> Result<U, CriticalError> {
+        <Env as ChainExtensionEnvironment<E, T>>::read_as_unbounded(self, len)
+    }
+
+    fn write(&mut self, buffer: &[u8], allow_skip: bool, weight_per_byte: Option<Weight>) -> Result<(), CriticalError> {
+        <Env as ChainExtensionEnvironment<E, T>>::write(self, buffer, allow_skip, weight_per_byte)
+    }
+
+    fn ext(&mut self) -> &mut E {
+        <Env as ChainExtensionEnvironment<E, T>>::ext(self)
+    }
+
+    fn charge_weight(&mut self, amount: Weight) -> Result<Self::ChargedAmount, CriticalError> {
+        <Env as ChainExtensionEnvironment<E, T>>::charge_weight(self, amount)
+    }
+
+    fn adjust_weight(&mut self, charged: Self::ChargedAmount, actual_weight: Weight) {
+        <Env as ChainExtensionEnvironment<E, T>>::adjust_weight(self, charged, actual_weight)
+    }
+}
+
 pub trait CallableChainExtension<E, T, Env> {
     fn call(&mut self, env: Env) -> Result<RetVal, CriticalError>;
 }

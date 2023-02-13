@@ -1,5 +1,8 @@
 use obce::{
-    substrate::CriticalError,
+    substrate::{
+        pallet_contracts::chain_extension::RetVal,
+        CriticalError,
+    },
     to_critical_error,
 };
 
@@ -18,4 +21,18 @@ fn error_macro_with_critical_works() {
 
     let error: Result<(), _> = Err(Error::NonCritical(123));
     assert_eq!(to_critical_error!(error), Ok(Err(Error::NonCritical(123))));
+}
+
+#[test]
+fn error_macro_with_retval() {
+    #[obce::error]
+    pub enum Error {
+        #[obce(ret_val = "10_001")]
+        First,
+
+        Second,
+    }
+
+    assert!(matches!(RetVal::try_from(Error::First), Ok(_)));
+    assert!(matches!(RetVal::try_from(Error::Second), Err(_)));
 }
