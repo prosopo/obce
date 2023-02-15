@@ -95,18 +95,24 @@ pub fn definition(attrs: TokenStream, trait_item: TokenStream) -> TokenStream {
 /// }
 ///
 /// #[obce::implementation]
-/// impl<'a, 'b, E, T> ChainExtensionDefinition for ExtensionContext<'a, 'b, E, T, ChainExtension>
+/// impl<'a, 'b, E, T, Env> ChainExtensionDefinition for ExtensionContext<'a, 'b, E, T, Env, ChainExtension>
 /// where
 ///     T: SysConfig + ContractConfig,
 ///     <<T as SysConfig>::Lookup as StaticLookup>::Source: From<<T as SysConfig>::AccountId>,
 ///     E: Ext<T = T>,
 ///     <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
+///     Env: ChainExtensionEnvironment<E, T>
 /// {
 ///     fn extension_method(&self) {
 ///         // Do awesome stuff!
 ///     }
 /// }
 /// ```
+///
+/// The `E: Ext<T = T>` trait bound is optional. This means that you can create your custom `ChainExtensionEnvironment`
+/// implementations to test your chain extension on the Substrate side via `obce::substrate::CallableChainExtension` trait (for ink! testing see [`#[obce::mock]`](macro@mock)).
+///
+/// At the same time, OBCE will automatically generate `pallet_contracts::chain_extension::ChainExtension` impl with `E: Ext<T = T>` bound implied.
 ///
 /// # Weight charging
 ///
@@ -148,16 +154,45 @@ pub fn definition(attrs: TokenStream, trait_item: TokenStream) -> TokenStream {
 /// }
 ///
 /// #[obce::implementation]
-/// impl<'a, 'b, E, T> ChainExtensionDefinition for ExtensionContext<'a, 'b, E, T, ChainExtension>
+/// impl<'a, 'b, E, T, Env> ChainExtensionDefinition for ExtensionContext<'a, 'b, E, T, Env, ChainExtension>
 /// where
 ///     T: SysConfig + ContractConfig + pallet_example::Config,
 ///     <<T as SysConfig>::Lookup as StaticLookup>::Source: From<<T as SysConfig>::AccountId>,
 ///     E: Ext<T = T>,
 ///     <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
+///     Env: ChainExtensionEnvironment<E, T>
 /// {
 ///     #[obce(weight(dispatch = "pallet_example::Pallet::<T>::test_method", args = "123"))]
 ///     fn extension_method(&mut self, val: u64) {
 ///         // ...
+///     }
+/// }
+/// ```
+///
+/// # `RetVal` handling
+///
+/// To correctly return `RetVal` on compatible errors, that have their variants marked with
+/// `#[obce(ret_val = "...")]` mark your method with `#[obce(ret_val)]`:
+///
+/// ```ignore
+/// #[obce::error]
+/// pub enum MyCustomError {
+///     #[obce(ret_val = "10_001")]
+///     First
+/// }
+///
+/// #[obce::implementation]
+/// impl<'a, 'b, E, T, Env> ChainExtensionDefinition for ExtensionContext<'a, 'b, E, T, Env, ChainExtension>
+/// where
+///     T: SysConfig + ContractConfig + pallet_example::Config,
+///     <<T as SysConfig>::Lookup as StaticLookup>::Source: From<<T as SysConfig>::AccountId>,
+///     E: Ext<T = T>,
+///     <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
+///     Env: ChainExtensionEnvironment<E, T>
+/// {
+///     #[obce(ret_val)]
+///     fn extension_method(&mut self, _: u64) -> Result<(), MyCustomError> {
+///         Err(MyCustomError::First)
 ///     }
 /// }
 /// ```
@@ -205,6 +240,24 @@ pub fn implementation(attrs: TokenStream, impl_item: TokenStream) -> TokenStream
 /// ```
 ///
 /// Only one enum variant can be marked as `#[obce(critical)]`.
+///
+/// # `RetVal`-convertible errors
+///
+/// You can mark error variants with `#[obce(ret_val = "...")]` to create an implementation of
+/// [`TryFrom<YourError>`](::core::convert::TryFrom) for `pallet_contracts::chain_extension::RetVal`,
+/// which will automatically convert suitable error variants to `RetVal` on implementation methods marked with `#[obce(ret_val)]`.
+///
+/// Error variant's `#[obce(ret_val = "...")]` accepts an expression that evaluates to [`u32`]:
+///
+/// ```ignore
+/// #[obce::error]
+/// enum Error {
+///     #[obce(ret_val = "10_001")]
+///     First,
+///
+///     Second
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn error(attrs: TokenStream, enum_item: TokenStream) -> TokenStream {
     match error::generate(attrs.into(), enum_item.into()) {

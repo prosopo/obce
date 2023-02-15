@@ -46,23 +46,46 @@ use pallet_contracts::chain_extension::{
 use scale::Decode;
 use sp_runtime::DispatchError;
 
+/// Generalized chain extension execution environment.
+///
+/// Custom environment implementations can be used for chain extension testing.
 pub trait ChainExtensionEnvironment<E, T> {
+    /// Charged weight amount handle.
+    ///
+    /// Can be opaque, since it's used just for the [`Self::charge_weight`] call.
     type ChargedAmount;
 
+    /// Identifier of a chain extension function that is being executed.
     fn func_id(&self) -> u16;
 
+    /// Chain extension's unique identifier.
     fn ext_id(&self) -> u16;
 
+    /// The length of the input.
     fn in_len(&self) -> u32;
 
+    /// Reads and decodes a type with a dynamic size from contract memory.
+    ///
+    /// Make sure to include `len` in your weight calculations.
     fn read_as_unbounded<U: Decode>(&mut self, len: u32) -> Result<U, CriticalError>;
 
+    /// Write the supplied buffer to contract memory.
     fn write(&mut self, buffer: &[u8], allow_skip: bool, weight_per_byte: Option<Weight>) -> Result<(), CriticalError>;
 
+    /// Grants access to the execution environment of the current contract call.
     fn ext(&mut self) -> &mut E;
 
+    /// Charge the passed amount of weight from the overall limit.
+    ///
+    /// It returns [`Ok`] when there the remaining weight budget is larger than the passed weight. It returns [`Err`] otherwise.
+    /// In this case the chain extension should abort the execution and pass through the error.
+    ///
+    /// The returned value can be used to with [`Self::adjust_weight`].
     fn charge_weight(&mut self, amount: Weight) -> Result<Self::ChargedAmount, CriticalError>;
 
+    /// Adjust a previously charged amount down to its actual amount.
+    ///
+    /// This is when a maximum a priori amount was charged and then should be partially refunded to match the actual amount.
     fn adjust_weight(&mut self, charged: Self::ChargedAmount, actual_weight: Weight);
 }
 
@@ -146,7 +169,13 @@ where
     }
 }
 
+/// Chain extension entrypoint.
+///
+/// Unlike [`Environment`](pallet_contracts::chain_extension::Environment), [`CallableChainExtension`]
+/// does not require `E` to have `Ext<T = T>` trait bound, allowing you to test your chain extension
+/// by creating a custom environment implementation.
 pub trait CallableChainExtension<E, T, Env> {
+    /// Call chain extension with the provided execution environment.
     fn call(&mut self, env: Env) -> Result<RetVal, CriticalError>;
 }
 
