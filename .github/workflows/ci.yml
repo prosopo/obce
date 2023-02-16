@@ -46,7 +46,7 @@ jobs:
       run: |
         mkdir artifacts
         cp ./tests/e2e/contract/target/ink/contract.contract artifacts/
-        cp ./tests/e2e/contract/target/ink/metadata.json artifacts/contract.json
+        cp ./tests/e2e/contract/target/ink/contract.json artifacts/
     - name: Run Typechain compiler
       run: nix develop -c yarn build:release:no-compile
     - name: Run tests
