@@ -20,7 +20,7 @@ chain-extension = { path = "../../../obce-test-environment/chain-extension", def
 name = "contract"
 path = "lib.rs"
 crate-type = [
-	"cdylib"
+    "cdylib"
 ]
 
 [features]
