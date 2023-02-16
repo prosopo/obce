@@ -38,11 +38,11 @@ impl pallet_contracts::Config for Runtime {
     // ...
 
     type ChainExtension = (
-		pallet_assets_chain_extension::substrate::AssetsExtension,
+        pallet_assets_chain_extension::substrate::AssetsExtension,
 
         // Your custom extension
-		rand_extension::substrate::Extension,
-	);
+        rand_extension::substrate::Extension,
+    );
 
     // ...
 }
