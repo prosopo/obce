@@ -140,20 +140,32 @@ fn chain_extension_trait_impl(mut impl_item: ItemImpl) -> Result<TokenStream, Er
             let lhs_pat = input_bindings.lhs_pat(None);
             let call_params = input_bindings.iter_call_params();
 
-            let weight_tokens = handle_weight_attribute(&input_bindings, obce_attrs.iter())?;
+            let (weight_tokens, pre_charge) = handle_weight_attribute(&input_bindings, obce_attrs.iter())?;
             let ret_val_tokens = handle_ret_val_attribute(obce_attrs.iter());
+
+            let read_with_charge = if pre_charge {
+                quote! {
+                    #weight_tokens;
+                    let #lhs_pat = env.read_as_unbounded(len)?;
+                }
+            } else {
+                quote! {
+                    let #lhs_pat = env.read_as_unbounded(len)?;
+                    #weight_tokens;
+                }
+            };
 
             Result::<_, Error>::Ok(quote! {
                 <#dyn_trait as ::obce::codegen::MethodDescription<#hash>>::ID => {
-                    let #lhs_pat = env.read_as_unbounded(len)?;
-                    #weight_tokens
+                    #read_with_charge
                     let mut context = ::obce::substrate::ExtensionContext::new(self, env);
                     let result = <_ as #trait_>::#method_name(
                         &mut context
                         #(, #call_params)*
                     );
+
                     // If result is `Result` and `Err` is critical, return from the `call`.
-                    // Otherwise encode the result into the buffer.
+                    // Otherwise, try to convert result to RetVal, and return it or encode the result into the buffer.
                     let result = ::obce::to_critical_error!(result)?;
                     #ret_val_tokens
                     <_ as ::scale::Encode>::using_encoded(&result, |w| context.env.write(w, true, None))?;
@@ -321,7 +333,7 @@ fn handle_ret_val_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(iter: I)
 fn handle_weight_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(
     input_bindings: &InputBindings,
     iter: I,
-) -> Result<Option<TokenStream>, Error> {
+) -> Result<(Option<TokenStream>, bool), Error> {
     let weight_params = iter.into_iter().find_map(|attr| {
         let NestedMeta::Meta(Meta::List(list)) = attr else {
             return None;
@@ -348,12 +360,15 @@ fn handle_weight_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(
                     }
                 };
 
-                return Ok(Some(handle_dispatch_weight(
-                    ident,
-                    input_bindings,
-                    &dispatch_path.value(),
-                    args.as_deref(),
-                )?))
+                return Ok((
+                    Some(handle_dispatch_weight(
+                        ident,
+                        input_bindings,
+                        &dispatch_path.value(),
+                        args.as_deref(),
+                    )?),
+                    false,
+                ))
             }
             Some((_, ident)) => {
                 return Err(format_err_spanned!(
@@ -366,7 +381,15 @@ fn handle_weight_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(
 
         match weight_params.iter().find_by_name("expr") {
             Some((LitOrPath::Lit(Lit::Str(expr)), _)) => {
-                return Ok(Some(handle_expr_weight(input_bindings, &expr.value())?))
+                let pre_charge = matches!(
+                    weight_params.iter().find_by_name("pre_charge"),
+                    Some((LitOrPath::Path, _))
+                );
+
+                return Ok((
+                    Some(handle_expr_weight(input_bindings, &expr.value(), pre_charge)?),
+                    pre_charge,
+                ))
             }
             Some((_, ident)) => {
                 return Err(format_err_spanned!(
@@ -382,19 +405,23 @@ fn handle_weight_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(
             r#"either "dispatch" or "expr" attributes are expected"#
         ))
     } else {
-        Ok(None)
+        Ok((None, false))
     }
 }
 
-fn handle_expr_weight(input_bindings: &InputBindings, expr: &str) -> Result<TokenStream, Error> {
+fn handle_expr_weight(input_bindings: &InputBindings, expr: &str, pre_charge: bool) -> Result<TokenStream, Error> {
     let expr = parse_str::<Expr>(expr)?;
 
-    let raw_map = input_bindings.raw_special_mapping();
+    let raw_map = if pre_charge {
+        quote! {}
+    } else {
+        input_bindings.raw_special_mapping()
+    };
 
     Ok(quote! {{
         #[allow(unused_variables)]
         #raw_map
-        env.charge_weight(#expr.into())?;
+        env.charge_weight(#expr)?;
     }})
 }
 
