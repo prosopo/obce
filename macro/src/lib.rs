@@ -201,6 +201,24 @@ pub fn implementation(attrs: TokenStream, impl_item: TokenStream) -> TokenStream
 /// ```
 ///
 /// Only one enum variant can be marked as `#[obce(critical)]`.
+///
+/// # `RetVal`-convertible errors
+///
+/// You can mark error variants with `#[obce(ret_val = "...")]` to create an implementation of
+/// [`TryFrom<YourError>`](::core::convert::TryFrom) for `pallet_contracts::chain_extension::RetVal`,
+/// which will automatically convert suitable error variants to `RetVal` on implementation methods marked with `#[obce(ret_val)]`.
+///
+/// Error variant's `#[obce(ret_val = "...")]` accepts an expression that evaluates to [`u32`]:
+///
+/// ```ignore
+/// #[obce::error]
+/// enum Error {
+///     #[obce(ret_val = "10_001")]
+///     First,
+///
+///     Second
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn error(attrs: TokenStream, enum_item: TokenStream) -> TokenStream {
     match error::generate(attrs.into(), enum_item.into()) {
