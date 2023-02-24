@@ -23,7 +23,7 @@ where
     <<T as SysConfig>::Lookup as StaticLookup>::Source: From<<T as SysConfig>::AccountId>,
     E: Ext<T = T>,
 {
-    #[obce(weight(expr = "Weight::from_ref_time(_val)"))]
+    #[obce(weight(expr = "Weight::from_ref_time(*_val)"))]
     fn extension_method(&mut self, _val: u64) {}
 }
 

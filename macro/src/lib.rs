@@ -26,8 +26,8 @@ use proc_macro::TokenStream;
 use obce_codegen::{
     definition,
     error,
+    implementation,
     mock,
-    ChainExtensionImplementation,
 };
 
 /// Chain extension definition for use with Substrate-based nodes and ink! smart contracts.
@@ -159,7 +159,7 @@ pub fn definition(attrs: TokenStream, trait_item: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn implementation(attrs: TokenStream, impl_item: TokenStream) -> TokenStream {
-    match ChainExtensionImplementation::generate(attrs.into(), impl_item.into()) {
+    match implementation::generate(attrs.into(), impl_item.into()) {
         Ok(impls) => impls.into(),
         Err(err) => err.to_compile_error().into(),
     }

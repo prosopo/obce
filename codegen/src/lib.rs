@@ -21,9 +21,7 @@
 
 pub mod definition;
 pub mod error;
-mod implementation;
+pub mod implementation;
 pub mod mock;
 mod types;
 mod utils;
-
-pub use crate::implementation::ChainExtensionImplementation;
