@@ -31,6 +31,8 @@ use syn::{
     Attribute,
     FnArg,
     Ident,
+    Lit,
+    Meta,
     NestedMeta,
     Pat,
     PatType,
@@ -99,6 +101,42 @@ where
     }
 }
 
+pub enum LitOrPath<'a> {
+    Lit(&'a Lit),
+    Path,
+}
+
+pub trait MetaUtils<'a> {
+    fn find_by_name(self, name: &str) -> Option<(LitOrPath<'a>, &'a Ident)>;
+}
+
+impl<'a, I> MetaUtils<'a> for I
+where
+    I: IntoIterator<Item = &'a NestedMeta>,
+{
+    fn find_by_name(self, name: &str) -> Option<(LitOrPath<'a>, &'a Ident)> {
+        self.into_iter().find_map(|attr| {
+            match attr.borrow() {
+                NestedMeta::Meta(Meta::NameValue(value)) => {
+                    if let Some(ident) = value.path.get_ident() {
+                        (ident == name).then_some((LitOrPath::Lit(&value.lit), ident))
+                    } else {
+                        None
+                    }
+                }
+                NestedMeta::Meta(Meta::Path(path)) => {
+                    if let Some(ident) = path.get_ident() {
+                        (ident == name).then_some((LitOrPath::Path, ident))
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            }
+        })
+    }
+}
+
 pub struct InputBindings<'a> {
     bindings: Vec<&'a PatType>,
 }
@@ -150,7 +188,7 @@ impl<'a> InputBindings<'a> {
         let rhs = self.iter_call_params();
 
         quote! {
-            let (#(#lhs,)*) = (#(#rhs,)*);
+            let (#(#lhs,)*) = (#(&#rhs,)*);
         }
     }
 }
@@ -241,7 +279,7 @@ mod tests {
         assert_eq!(
             parse2::<Stmt>(input_bindings.raw_special_mapping()).unwrap(),
             parse_quote! {
-                let (one,) = (__ink_binding_0,);
+                let (one,) = (&__ink_binding_0,);
             }
         );
     }
@@ -261,7 +299,7 @@ mod tests {
         assert_eq!(
             parse2::<Stmt>(input_bindings.raw_special_mapping()).unwrap(),
             parse_quote! {
-                let (one, two, three,) = (__ink_binding_0, __ink_binding_1, __ink_binding_2,);
+                let (one, two, three,) = (&__ink_binding_0, &__ink_binding_1, &__ink_binding_2,);
             }
         );
     }

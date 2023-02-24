@@ -1,7 +1,5 @@
-mod test_pallet;
-
 use obce::substrate::{
-    frame_system::{Config as SysConfig, RawOrigin},
+    frame_system::Config as SysConfig,
     pallet_contracts::{
         chain_extension::Ext,
         Config as ContractConfig,
@@ -10,27 +8,31 @@ use obce::substrate::{
     ExtensionContext
 };
 
+#[obce::error]
+pub enum Error {
+    #[obce(ret_val = "100")]
+    One,
+
+    Two
+}
+
 pub struct ChainExtension;
 
 #[obce::definition]
 pub trait ChainExtensionDefinition {
-    fn extension_method(&mut self, val: u64);
+    fn extension_method(&self) -> Result<(), Error>;
 }
 
 #[obce::implementation]
 impl<'a, 'b, E, T> ChainExtensionDefinition for ExtensionContext<'a, 'b, E, T, ChainExtension>
 where
-    T: SysConfig + ContractConfig + crate::test_pallet::Config,
+    T: SysConfig + ContractConfig,
     <<T as SysConfig>::Lookup as StaticLookup>::Source: From<<T as SysConfig>::AccountId>,
     E: Ext<T = T>,
 {
-    #[obce(weight(dispatch = "crate::test_pallet::Pallet::<T>::test_method", args = "*val, 123"))]
-    fn extension_method(&mut self, val: u64) {
-        crate::test_pallet::Pallet::<T>::test_method(
-            RawOrigin::Signed(self.env.ext().address().clone()).into(),
-            val,
-            123
-        ).unwrap();
+    #[obce(ret_val)]
+    fn extension_method(&self) -> Result<(), Error> {
+        todo!()
     }
 }
 

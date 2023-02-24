@@ -1,7 +1,6 @@
-mod test_pallet;
-
 use obce::substrate::{
-    frame_system::{Config as SysConfig, RawOrigin},
+    frame_support::dispatch::Weight,
+    frame_system::Config as SysConfig,
     pallet_contracts::{
         chain_extension::Ext,
         Config as ContractConfig,
@@ -20,18 +19,12 @@ pub trait ChainExtensionDefinition {
 #[obce::implementation]
 impl<'a, 'b, E, T> ChainExtensionDefinition for ExtensionContext<'a, 'b, E, T, ChainExtension>
 where
-    T: SysConfig + ContractConfig + crate::test_pallet::Config,
+    T: SysConfig + ContractConfig,
     <<T as SysConfig>::Lookup as StaticLookup>::Source: From<<T as SysConfig>::AccountId>,
     E: Ext<T = T>,
 {
-    #[obce(weight(dispatch = "crate::test_pallet::Pallet::<T>::test_method", args = "*val, 123"))]
-    fn extension_method(&mut self, val: u64) {
-        crate::test_pallet::Pallet::<T>::test_method(
-            RawOrigin::Signed(self.env.ext().address().clone()).into(),
-            val,
-            123
-        ).unwrap();
-    }
+    #[obce(weight(expr = "Weight::from_ref_time(123)", pre_charge))]
+    fn extension_method(&mut self, _val: u64) {}
 }
 
 fn main() {}

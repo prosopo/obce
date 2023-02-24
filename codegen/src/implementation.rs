@@ -19,18 +19,21 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use std::collections::HashMap;
-
 use crate::{
     format_err_spanned,
     utils::{
         into_u32,
         AttributeParser,
         InputBindings,
+        LitOrPath,
+        MetaUtils,
     },
 };
 use itertools::Itertools;
-use proc_macro2::TokenStream;
+use proc_macro2::{
+    Ident,
+    TokenStream,
+};
 use quote::{
     format_ident,
     quote,
@@ -57,181 +60,144 @@ use syn::{
 };
 use tuple::Map;
 
-pub struct ChainExtensionImplementation;
+pub fn generate(_attrs: TokenStream, input: TokenStream) -> Result<TokenStream, Error> {
+    let impl_item: ItemImpl = parse2(input).unwrap();
 
-impl ChainExtensionImplementation {
-    pub fn generate(_attrs: TokenStream, input: TokenStream) -> Result<TokenStream, Error> {
-        let impl_item: ItemImpl = parse2(input).unwrap();
+    let mut original_implementation = impl_item.clone();
 
-        let mut original_implementation = impl_item.clone();
+    let method_items = original_implementation.items.iter_mut().filter_map(|item| {
+        if let ImplItem::Method(method_item) = item {
+            Some(method_item)
+        } else {
+            None
+        }
+    });
 
-        let method_items = original_implementation.items.iter_mut().filter_map(|item| {
-            if let ImplItem::Method(method_item) = item {
-                Some(method_item)
+    for method_item in method_items {
+        let (_, other_attrs) = method_item.attrs.iter().cloned().split_attrs()?;
+
+        method_item.attrs = other_attrs;
+    }
+
+    let chain_extension = chain_extension_trait_impl(impl_item)?;
+
+    Ok(quote! {
+        // Implementation of the trait for `ExtensionContext` with main logic.
+        #original_implementation
+
+        // Implementation of `ChainExtension` from `contract-pallet`
+        #chain_extension
+    })
+}
+
+#[allow(non_snake_case)]
+fn chain_extension_trait_impl(mut impl_item: ItemImpl) -> Result<TokenStream, Error> {
+    let context = ExtensionContext::try_from(&impl_item)?;
+
+    let mut main_generics = impl_item.generics.clone();
+    main_generics = filter_generics(main_generics, &context.lifetime1);
+    main_generics = filter_generics(main_generics, &context.lifetime2);
+    main_generics = filter_generics(main_generics, &context.env);
+    let (main_impls, _, main_where) = main_generics.split_for_impl();
+
+    let mut call_generics = impl_item.generics.clone();
+    call_generics = filter_generics(call_generics, &context.lifetime1);
+    call_generics = filter_generics(call_generics, &context.lifetime2);
+    let (_, _, call_where) = call_generics.split_for_impl();
+
+    let T = context.substrate;
+    let E = context.env;
+    let extension = context.extension;
+    let namespace = quote! { ::obce::substrate::pallet_contracts::chain_extension:: };
+    let trait_;
+    let dyn_trait;
+    if let Some((_, path, _)) = impl_item.trait_ {
+        trait_ = path.clone();
+        dyn_trait = quote! { dyn #path };
+    } else {
+        return Err(format_err_spanned!(impl_item, "expected impl trait block",))
+    }
+
+    let methods: Vec<_> = impl_item
+        .items
+        .iter_mut()
+        .filter_map(|item| {
+            if let ImplItem::Method(method) = item {
+                Some(method)
             } else {
                 None
             }
-        });
-
-        for method_item in method_items {
-            let (_, other_attrs) = method_item.attrs.iter().cloned().split_attrs()?;
-
-            method_item.attrs = other_attrs;
-        }
-
-        let chain_extension = Self::chain_extension_trait_impl(impl_item)?;
-
-        Ok(quote! {
-            // Implementation of the trait for `ExtensionContext` with main logic.
-            #original_implementation
-
-            // Implementation of `ChainExtension` from `contract-pallet`
-            #chain_extension
         })
-    }
+        .map(|method| {
+            let (obce_attrs, other_attrs) = method.attrs.iter().cloned().split_attrs()?;
 
-    #[allow(non_snake_case)]
-    fn chain_extension_trait_impl(mut impl_item: ItemImpl) -> Result<TokenStream, Error> {
-        let context = Self::split_generics(&impl_item)?;
-        let mut main_generics = impl_item.generics.clone();
-        main_generics = filter_generics(main_generics, &context.lifetime1);
-        main_generics = filter_generics(main_generics, &context.lifetime2);
-        main_generics = filter_generics(main_generics, &context.env);
-        let (main_impls, _, main_where) = main_generics.split_for_impl();
+            method.attrs = other_attrs;
 
-        let mut call_generics = impl_item.generics.clone();
-        call_generics = filter_generics(call_generics, &context.lifetime1);
-        call_generics = filter_generics(call_generics, &context.lifetime2);
-        let (_, _, call_where) = call_generics.split_for_impl();
+            let hash = into_u32(&method.sig.ident);
+            let method_name = &method.sig.ident;
 
-        let T = context.substrate;
-        let E = context.env;
-        let extension = context.extension;
-        let namespace = quote! { ::obce::substrate::pallet_contracts::chain_extension:: };
-        let trait_;
-        let dyn_trait;
-        if let Some((_, path, _)) = impl_item.trait_ {
-            trait_ = path.clone();
-            dyn_trait = quote! { dyn #path };
-        } else {
-            return Err(format_err_spanned!(impl_item, "expected impl trait block",))
-        }
+            let input_bindings = InputBindings::from_iter(&method.sig.inputs);
+            let lhs_pat = input_bindings.lhs_pat(None);
+            let call_params = input_bindings.iter_call_params();
 
-        let methods: Vec<_> = impl_item
-            .items
-            .iter_mut()
-            .filter_map(|item| {
-                if let ImplItem::Method(method) = item {
-                    Some(method)
-                } else {
-                    None
-                }
-            })
-            .map(|method| {
-                let (obce_attrs, other_attrs) = method.attrs.iter().cloned().split_attrs()?;
+            let (weight_tokens, pre_charge) = handle_weight_attribute(&input_bindings, obce_attrs.iter())?;
+            let ret_val_tokens = handle_ret_val_attribute(obce_attrs.iter());
 
-                method.attrs = other_attrs;
-
-                let hash = into_u32(&method.sig.ident);
-                let method_name = &method.sig.ident;
-
-                let input_bindings = InputBindings::from_iter(&method.sig.inputs);
-                let lhs_pat = input_bindings.lhs_pat(None);
-                let call_params = input_bindings.iter_call_params();
-
-                let weight_tokens = handle_weight_attribute(&input_bindings, obce_attrs.iter())?;
-
-                Result::<_, Error>::Ok(quote! {
-                    <#dyn_trait as ::obce::codegen::MethodDescription<#hash>>::ID => {
-                        let #lhs_pat = env.read_as_unbounded(len)?;
-                        #weight_tokens
-                        let mut context = ::obce::substrate::ExtensionContext::new(self, env);
-                        let result = <_ as #trait_>::#method_name(
-                            &mut context
-                            #(, #call_params)*
-                        );
-                        // If result is `Result` and `Err` is critical, return from the `call`.
-                        // Otherwise encode the result into the buffer.
-                        let result = ::obce::to_critical_error!(result)?;
-                        <_ as ::scale::Encode>::using_encoded(&result, |w| context.env.write(w, true, None))?;
-                    },
-                })
-            })
-            .try_collect()?;
-
-        Ok(quote! {
-            impl #main_impls #namespace ChainExtension<#T> for #extension #main_where {
-                fn call<#E>(&mut self, env: #namespace Environment<#E, #namespace InitState>)
-                    -> ::core::result::Result<#namespace RetVal, ::obce::substrate::sp_runtime::DispatchError>
-                    #call_where
-                {
-                    let mut env = env.buf_in_buf_out();
-                    let len = env.in_len();
-
-                    match env.func_id() {
-                        #(#methods)*
-                        _ => ::core::result::Result::Err(::obce::substrate::sp_runtime::DispatchError::Other(
-                            "InvalidFunctionId"
-                        ))?,
-                    };
-
-                    Ok(#namespace RetVal::Converging(0))
-                }
-            }
-
-            impl #main_impls #namespace RegisteredChainExtension<#T> for #extension #main_where {
-                const ID: ::core::primitive::u16 = <#dyn_trait as ::obce::codegen::ExtensionDescription>::ID;
-            }
-        })
-    }
-
-    fn split_generics(impl_item: &ItemImpl) -> Result<ExtensionContext, Error> {
-        let lifetime1;
-        let lifetime2;
-        let env_generic;
-        let substrate;
-        let extension_ty;
-
-        let wrong_type = Err(format_err_spanned!(
-            impl_item.self_ty,
-            "the type should be `ExtensionContext`",
-        ));
-        if let Type::Path(path) = impl_item.self_ty.as_ref() {
-            if let Some(extension) = path.path.segments.last() {
-                if let PathArguments::AngleBracketed(generic_args) = &extension.arguments {
-                    if generic_args.args.len() == 5 {
-                        lifetime1 = generic_args.args[0].clone();
-                        lifetime2 = generic_args.args[1].clone();
-                        env_generic = generic_args.args[2].clone();
-                        substrate = generic_args.args[3].clone();
-                        extension_ty = generic_args.args[4].clone();
-                    } else {
-                        return Err(format_err_spanned!(
-                            extension.arguments,
-                            "`ExtensionContext` should have 5 generics as `<'a, 'b, E, T, Extension>`",
-                        ))
-                    }
-                } else {
-                    return Err(format_err_spanned!(
-                        extension.arguments,
-                        "`ExtensionContext` should have `<'a, 'b, E, T, Extension>`",
-                    ))
+            let read_with_charge = if pre_charge {
+                quote! {
+                    #weight_tokens;
+                    let #lhs_pat = env.read_as_unbounded(len)?;
                 }
             } else {
-                return wrong_type
+                quote! {
+                    let #lhs_pat = env.read_as_unbounded(len)?;
+                    #weight_tokens;
+                }
+            };
+
+            Result::<_, Error>::Ok(quote! {
+                <#dyn_trait as ::obce::codegen::MethodDescription<#hash>>::ID => {
+                    #read_with_charge
+                    let mut context = ::obce::substrate::ExtensionContext::new(self, env);
+                    let result = <_ as #trait_>::#method_name(
+                        &mut context
+                        #(, #call_params)*
+                    );
+
+                    // If result is `Result` and `Err` is critical, return from the `call`.
+                    // Otherwise, try to convert result to RetVal, and return it or encode the result into the buffer.
+                    let result = ::obce::to_critical_error!(result)?;
+                    #ret_val_tokens
+                    <_ as ::scale::Encode>::using_encoded(&result, |w| context.env.write(w, true, None))?;
+                },
+            })
+        })
+        .try_collect()?;
+
+    Ok(quote! {
+        impl #main_impls #namespace ChainExtension<#T> for #extension #main_where {
+            fn call<#E>(&mut self, env: #namespace Environment<#E, #namespace InitState>)
+                -> ::core::result::Result<#namespace RetVal, ::obce::substrate::sp_runtime::DispatchError>
+                #call_where
+            {
+                let mut env = env.buf_in_buf_out();
+                let len = env.in_len();
+
+                match env.func_id() {
+                    #(#methods)*
+                    _ => ::core::result::Result::Err(::obce::substrate::sp_runtime::DispatchError::Other(
+                        "InvalidFunctionId"
+                    ))?,
+                };
+
+                Ok(#namespace RetVal::Converging(0))
             }
-        } else {
-            return wrong_type
         }
 
-        Ok(ExtensionContext {
-            lifetime1,
-            lifetime2,
-            substrate,
-            env: env_generic,
-            extension: extension_ty,
-        })
-    }
+        impl #main_impls #namespace RegisteredChainExtension<#T> for #extension #main_where {
+            const ID: ::core::primitive::u16 = <#dyn_trait as ::obce::codegen::ExtensionDescription>::ID;
+        }
+    })
 }
 
 struct ExtensionContext {
@@ -245,6 +211,49 @@ struct ExtensionContext {
     substrate: GenericArgument,
     // Generic `Extension`
     extension: GenericArgument,
+}
+
+impl TryFrom<&ItemImpl> for ExtensionContext {
+    type Error = Error;
+
+    fn try_from(impl_item: &ItemImpl) -> Result<Self, Self::Error> {
+        let Type::Path(path) = impl_item.self_ty.as_ref() else {
+            return Err(format_err_spanned!(
+                impl_item,
+                "the type should be `ExtensionContext`"
+            ));
+        };
+
+        let Some(extension) = path.path.segments.last() else {
+            return Err(format_err_spanned!(
+                path,
+                "the type should be `ExtensionContext`"
+            ));
+        };
+
+        let PathArguments::AngleBracketed(generic_args) = &extension.arguments else {
+            return Err(format_err_spanned!(
+                path,
+                "`ExtensionContext` should have 5 generics as `<'a, 'b, E, T, Extension>`"
+            ));
+        };
+
+        let (lifetime1, lifetime2, env, substrate, extension) =
+            generic_args.args.iter().cloned().tuples().exactly_one().map_err(|_| {
+                format_err_spanned!(
+                    generic_args,
+                    "`ExtensionContext` should have 5 generics as `<'a, 'b, E, T, Extension>`"
+                )
+            })?;
+
+        Ok(ExtensionContext {
+            lifetime1,
+            lifetime2,
+            env,
+            substrate,
+            extension,
+        })
+    }
 }
 
 fn filter_generics(mut generics: Generics, filter: &GenericArgument) -> Generics {
@@ -299,78 +308,125 @@ fn is_subsequence<T: PartialEq + core::fmt::Debug>(src: &[T], search: &[T]) -> b
     false
 }
 
+fn handle_ret_val_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(iter: I) -> Option<TokenStream> {
+    let should_handle = iter.into_iter().any(|attr| {
+        if let NestedMeta::Meta(Meta::Path(path)) = attr {
+            if let Some(ident) = path.get_ident() {
+                return ident == "ret_val"
+            }
+        }
+
+        false
+    });
+
+    should_handle.then(|| {
+        quote! {
+            if let Err(error) = result {
+                if let Ok(ret_val) = error.try_into() {
+                    return Ok(ret_val)
+                }
+            }
+        }
+    })
+}
+
 fn handle_weight_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(
     input_bindings: &InputBindings,
     iter: I,
-) -> Result<Option<TokenStream>, Error> {
+) -> Result<(Option<TokenStream>, bool), Error> {
     let weight_params = iter.into_iter().find_map(|attr| {
         let NestedMeta::Meta(Meta::List(list)) = attr else {
             return None;
         };
 
-        if !list.path.is_ident("weight") {
+        let Some(ident) = list.path.get_ident() else {
             return None
-        }
+        };
 
-        let params = list
-            .nested
-            .iter()
-            .filter_map(|param| {
-                match param {
-                    NestedMeta::Meta(Meta::NameValue(value)) => {
-                        Some((
-                            value.path.get_ident()?.to_string(),
-                            match &value.lit {
-                                Lit::Str(st) => st.value(),
-                                _ => return None,
-                            },
-                        ))
-                    }
-                    _ => None,
-                }
-            })
-            .collect::<HashMap<_, _>>();
-
-        Some((params, attr))
+        (ident == "weight").then_some((&list.nested, ident))
     });
 
-    if let Some((weight_params, attr)) = weight_params {
-        if let Some(dispatch_path) = weight_params.get("dispatch") {
-            let dispatch_args = weight_params.get("args").map(|val| &**val);
+    if let Some((weight_params, weight_ident)) = weight_params {
+        match weight_params.iter().find_by_name("dispatch") {
+            Some((LitOrPath::Lit(Lit::Str(dispatch_path)), ident)) => {
+                let args = match weight_params.iter().find_by_name("args") {
+                    Some((LitOrPath::Lit(Lit::Str(args)), _)) => Some(args.value()),
+                    None => None,
+                    Some((_, ident)) => {
+                        return Err(format_err_spanned!(
+                            ident,
+                            "`args` attribute should contain a comma-separated expression list"
+                        ))
+                    }
+                };
 
-            Ok(Some(handle_dispatch_weight(
-                attr,
-                input_bindings,
-                dispatch_path,
-                dispatch_args,
-            )?))
-        } else if let Some(expr) = weight_params.get("expr") {
-            Ok(Some(handle_expr_weight(input_bindings, expr)?))
-        } else {
-            Err(format_err_spanned!(
-                attr,
-                r#"either "dispatch" or "expr" attributes are expected"#
-            ))
+                return Ok((
+                    Some(handle_dispatch_weight(
+                        ident,
+                        input_bindings,
+                        &dispatch_path.value(),
+                        args.as_deref(),
+                    )?),
+                    false,
+                ))
+            }
+            Some((_, ident)) => {
+                return Err(format_err_spanned!(
+                    ident,
+                    "`dispatch` attribute should contain a pallet method path"
+                ))
+            }
+            None => {}
+        };
+
+        match weight_params.iter().find_by_name("expr") {
+            Some((LitOrPath::Lit(Lit::Str(expr)), _)) => {
+                let pre_charge = matches!(
+                    weight_params.iter().find_by_name("pre_charge"),
+                    Some((LitOrPath::Path, _))
+                );
+
+                return Ok((
+                    Some(handle_expr_weight(input_bindings, &expr.value(), pre_charge)?),
+                    pre_charge,
+                ))
+            }
+            Some((_, ident)) => {
+                return Err(format_err_spanned!(
+                    ident,
+                    "`expr` attribute should contain an expression that returns `Weight`"
+                ))
+            }
+            None => {}
         }
+
+        Err(format_err_spanned!(
+            weight_ident,
+            r#"either "dispatch" or "expr" attributes are expected"#
+        ))
     } else {
-        Ok(None)
+        Ok((None, false))
     }
 }
 
-fn handle_expr_weight(input_bindings: &InputBindings, expr: &str) -> Result<TokenStream, Error> {
+fn handle_expr_weight(input_bindings: &InputBindings, expr: &str, pre_charge: bool) -> Result<TokenStream, Error> {
     let expr = parse_str::<Expr>(expr)?;
 
-    let raw_map = input_bindings.raw_special_mapping();
+    let raw_map = if pre_charge {
+        quote! {}
+    } else {
+        input_bindings.raw_special_mapping()
+    };
 
     Ok(quote! {{
         #[allow(unused_variables)]
         #raw_map
-        env.charge_weight(#expr.into())?;
+        env.charge_weight(#expr)?;
     }})
 }
 
 fn handle_dispatch_weight(
-    attr: &NestedMeta,
+    ident: &Ident,
     input_bindings: &InputBindings,
     dispatch_path: &str,
     args: Option<&str>,
@@ -380,7 +436,7 @@ fn handle_dispatch_weight(
 
     if segments_len < 3 {
         return Err(format_err_spanned!(
-            attr,
+            ident,
             "dispatch path should contain at least three segments"
         ))
     }
@@ -402,7 +458,7 @@ fn handle_dispatch_weight(
 
         // If no args were provided try to call the pallet method using default outer args.
         quote! {
-            #(#raw_call_params,)*
+            #(*#raw_call_params,)*
         }
     };
 
