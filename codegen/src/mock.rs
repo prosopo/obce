@@ -55,7 +55,7 @@ pub fn generate(_: TokenStream, input: TokenStream) -> Result<TokenStream, Error
     mock_trait.generics = impl_item.generics.clone();
     mock_trait.items = methods
         .iter()
-        .map(|method| (&**method).clone())
+        .map(|method| (**method).clone())
         .map(|val| {
             TraitItem::Method(TraitItemMethod {
                 attrs: val.attrs,
@@ -73,7 +73,7 @@ pub fn generate(_: TokenStream, input: TokenStream) -> Result<TokenStream, Error
     mock_impl.generics = impl_item.generics.clone();
     mock_impl.items = methods
         .iter()
-        .map(|method| (&**method).clone())
+        .map(|method| (**method).clone())
         .map(ImplItem::Method)
         .collect();
 

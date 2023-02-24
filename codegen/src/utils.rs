@@ -279,7 +279,7 @@ mod tests {
         assert_eq!(
             parse2::<Stmt>(input_bindings.raw_special_mapping()).unwrap(),
             parse_quote! {
-                let (one,) = (__ink_binding_0,);
+                let (one,) = (&__ink_binding_0,);
             }
         );
     }
@@ -299,7 +299,7 @@ mod tests {
         assert_eq!(
             parse2::<Stmt>(input_bindings.raw_special_mapping()).unwrap(),
             parse_quote! {
-                let (one, two, three,) = (__ink_binding_0, __ink_binding_1, __ink_binding_2,);
+                let (one, two, three,) = (&__ink_binding_0, &__ink_binding_1, &__ink_binding_2,);
             }
         );
     }
