@@ -19,18 +19,21 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use std::collections::HashMap;
-
 use crate::{
     format_err_spanned,
     utils::{
         into_u32,
         AttributeParser,
         InputBindings,
+        LitOrPath,
+        MetaUtils,
     },
 };
 use itertools::Itertools;
-use proc_macro2::TokenStream;
+use proc_macro2::{
+    Ident,
+    TokenStream,
+};
 use quote::{
     format_ident,
     quote,
@@ -293,23 +296,23 @@ fn is_subsequence<T: PartialEq + core::fmt::Debug>(src: &[T], search: &[T]) -> b
     false
 }
 
-fn handle_ret_val_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(
-    iter: I
-) -> Option<TokenStream> {
+fn handle_ret_val_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(iter: I) -> Option<TokenStream> {
     let should_handle = iter.into_iter().any(|attr| {
         if let NestedMeta::Meta(Meta::Path(path)) = attr {
             if let Some(ident) = path.get_ident() {
-                return ident == "ret_val";
+                return ident == "ret_val"
             }
         }
 
         false
     });
 
-    should_handle.then(|| quote! {
-        if let Err(error) = result {
-            if let Ok(ret_val) = error.try_into() {
-                return Ok(ret_val)
+    should_handle.then(|| {
+        quote! {
+            if let Err(error) = result {
+                if let Ok(ret_val) = error.try_into() {
+                    return Ok(ret_val)
+                }
             }
         }
     })
@@ -324,50 +327,60 @@ fn handle_weight_attribute<'a, I: IntoIterator<Item = &'a NestedMeta>>(
             return None;
         };
 
-        if !list.path.is_ident("weight") {
+        let Some(ident) = list.path.get_ident() else {
             return None
-        }
+        };
 
-        let params = list
-            .nested
-            .iter()
-            .filter_map(|param| {
-                match param {
-                    NestedMeta::Meta(Meta::NameValue(value)) => {
-                        Some((
-                            value.path.get_ident()?.to_string(),
-                            match &value.lit {
-                                Lit::Str(st) => st.value(),
-                                _ => return None,
-                            },
-                        ))
-                    }
-                    _ => None,
-                }
-            })
-            .collect::<HashMap<_, _>>();
-
-        Some((params, attr))
+        (ident == "weight").then_some((&list.nested, ident))
     });
 
-    if let Some((weight_params, attr)) = weight_params {
-        if let Some(dispatch_path) = weight_params.get("dispatch") {
-            let dispatch_args = weight_params.get("args").map(|val| &**val);
+    if let Some((weight_params, weight_ident)) = weight_params {
+        match weight_params.iter().find_by_name("dispatch") {
+            Some((LitOrPath::Lit(Lit::Str(dispatch_path)), ident)) => {
+                let args = match weight_params.iter().find_by_name("args") {
+                    Some((LitOrPath::Lit(Lit::Str(args)), _)) => Some(args.value()),
+                    None => None,
+                    Some((_, ident)) => {
+                        return Err(format_err_spanned!(
+                            ident,
+                            "`args` attribute should contain a comma-separated expression list"
+                        ))
+                    }
+                };
 
-            Ok(Some(handle_dispatch_weight(
-                attr,
-                input_bindings,
-                dispatch_path,
-                dispatch_args,
-            )?))
-        } else if let Some(expr) = weight_params.get("expr") {
-            Ok(Some(handle_expr_weight(input_bindings, expr)?))
-        } else {
-            Err(format_err_spanned!(
-                attr,
-                r#"either "dispatch" or "expr" attributes are expected"#
-            ))
+                return Ok(Some(handle_dispatch_weight(
+                    ident,
+                    input_bindings,
+                    &dispatch_path.value(),
+                    args.as_deref(),
+                )?))
+            }
+            Some((_, ident)) => {
+                return Err(format_err_spanned!(
+                    ident,
+                    "`dispatch` attribute should contain a pallet method path"
+                ))
+            }
+            None => {}
+        };
+
+        match weight_params.iter().find_by_name("expr") {
+            Some((LitOrPath::Lit(Lit::Str(expr)), _)) => {
+                return Ok(Some(handle_expr_weight(input_bindings, &expr.value())?))
+            }
+            Some((_, ident)) => {
+                return Err(format_err_spanned!(
+                    ident,
+                    "`expr` attribute should contain an expression that returns `Weight`"
+                ))
+            }
+            None => {}
         }
+
+        Err(format_err_spanned!(
+            weight_ident,
+            r#"either "dispatch" or "expr" attributes are expected"#
+        ))
     } else {
         Ok(None)
     }
@@ -386,7 +399,7 @@ fn handle_expr_weight(input_bindings: &InputBindings, expr: &str) -> Result<Toke
 }
 
 fn handle_dispatch_weight(
-    attr: &NestedMeta,
+    ident: &Ident,
     input_bindings: &InputBindings,
     dispatch_path: &str,
     args: Option<&str>,
@@ -396,7 +409,7 @@ fn handle_dispatch_weight(
 
     if segments_len < 3 {
         return Err(format_err_spanned!(
-            attr,
+            ident,
             "dispatch path should contain at least three segments"
         ))
     }

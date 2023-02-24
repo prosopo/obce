@@ -31,6 +31,8 @@ use syn::{
     Attribute,
     FnArg,
     Ident,
+    Lit,
+    Meta,
     NestedMeta,
     Pat,
     PatType,
@@ -96,6 +98,42 @@ where
             .try_collect()?;
 
         Ok((meta, other_attrs))
+    }
+}
+
+pub enum LitOrPath<'a> {
+    Lit(&'a Lit),
+    Path,
+}
+
+pub trait MetaUtils<'a> {
+    fn find_by_name(self, name: &str) -> Option<(LitOrPath<'a>, &'a Ident)>;
+}
+
+impl<'a, I> MetaUtils<'a> for I
+where
+    I: IntoIterator<Item = &'a NestedMeta>,
+{
+    fn find_by_name(self, name: &str) -> Option<(LitOrPath<'a>, &'a Ident)> {
+        self.into_iter().find_map(|attr| {
+            match attr.borrow() {
+                NestedMeta::Meta(Meta::NameValue(value)) => {
+                    if let Some(ident) = value.path.get_ident() {
+                        (ident == name).then_some((LitOrPath::Lit(&value.lit), ident))
+                    } else {
+                        None
+                    }
+                }
+                NestedMeta::Meta(Meta::Path(path)) => {
+                    if let Some(ident) = path.get_ident() {
+                        (ident == name).then_some((LitOrPath::Path, ident))
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            }
+        })
     }
 }
 

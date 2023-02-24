@@ -2,4 +2,4 @@ error: either "dispatch" or "expr" attributes are expected
   --> tests/ui/substrate/implementation/fail_weight_without_dispatch.rs:17:12
    |
 17 |     #[obce(weight())]
-   |            ^^^^^^^^
+   |            ^^^^^^
