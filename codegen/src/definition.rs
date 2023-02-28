@@ -148,7 +148,7 @@ impl Method {
         method_item.default = Some(parse_quote! {{
             ::obce::ink_lang::env::chain_extension::ChainExtensionMethod::build(#id_for_call)
                 .input::<#input_tokens>()
-                .output::<#output_tokens>()
+                .output::<#output_tokens, false>()
                 .ignore_error_code()
                 .call(&(#(#input_bindings),*))
         }});
