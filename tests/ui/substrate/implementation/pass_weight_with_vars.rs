@@ -7,6 +7,7 @@ use obce::substrate::{
         Config as ContractConfig,
     },
     sp_runtime::traits::StaticLookup,
+    ChainExtensionEnvironment,
     ExtensionContext
 };
 
@@ -18,11 +19,12 @@ pub trait ChainExtensionDefinition {
 }
 
 #[obce::implementation]
-impl<'a, 'b, E, T> ChainExtensionDefinition for ExtensionContext<'a, 'b, E, T, ChainExtension>
+impl<'a, E, T, Env> ChainExtensionDefinition for ExtensionContext<'a, E, T, Env, ChainExtension>
 where
     T: SysConfig + ContractConfig + crate::test_pallet::Config,
     <<T as SysConfig>::Lookup as StaticLookup>::Source: From<<T as SysConfig>::AccountId>,
     E: Ext<T = T>,
+    Env: ChainExtensionEnvironment<E, T>
 {
     #[obce(weight(dispatch = "crate::test_pallet::Pallet::<T>::test_method", args = "*val, 123"))]
     fn extension_method(&mut self, val: u64) {

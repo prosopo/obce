@@ -1,5 +1,5 @@
 error: dispatch path should contain at least three segments
-  --> tests/ui/substrate/implementation/fail_incorrect_weight_path.rs:17:19
+  --> tests/ui/substrate/implementation/fail_incorrect_weight_path.rs:18:19
    |
-17 |     #[obce(weight(dispatch = "test_method"))]
+18 |     #[obce(weight(dispatch = "test_method"))]
    |                   ^^^^^^^^

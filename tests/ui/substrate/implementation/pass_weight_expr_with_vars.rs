@@ -1,11 +1,9 @@
 use obce::substrate::{
     frame_support::dispatch::Weight,
     frame_system::Config as SysConfig,
-    pallet_contracts::{
-        chain_extension::Ext,
-        Config as ContractConfig,
-    },
+    pallet_contracts::Config as ContractConfig,
     sp_runtime::traits::StaticLookup,
+    ChainExtensionEnvironment,
     ExtensionContext
 };
 
@@ -17,11 +15,11 @@ pub trait ChainExtensionDefinition {
 }
 
 #[obce::implementation]
-impl<'a, 'b, E, T> ChainExtensionDefinition for ExtensionContext<'a, 'b, E, T, ChainExtension>
+impl<'a, E, T, Env> ChainExtensionDefinition for ExtensionContext<'a, E, T, Env, ChainExtension>
 where
     T: SysConfig + ContractConfig,
     <<T as SysConfig>::Lookup as StaticLookup>::Source: From<<T as SysConfig>::AccountId>,
-    E: Ext<T = T>,
+    Env: ChainExtensionEnvironment<E, T>,
 {
     #[obce(weight(expr = "Weight::from_ref_time(*_val)"))]
     fn extension_method(&mut self, _val: u64) {}

@@ -42,6 +42,7 @@ use quote::{
 use syn::{
     parse::Parser,
     parse2,
+    parse_quote,
     parse_str,
     punctuated::Punctuated,
     Error,
@@ -94,21 +95,41 @@ pub fn generate(_attrs: TokenStream, input: TokenStream) -> Result<TokenStream, 
 fn chain_extension_trait_impl(mut impl_item: ItemImpl) -> Result<TokenStream, Error> {
     let context = ExtensionContext::try_from(&impl_item)?;
 
+    let namespace = quote! { ::obce::substrate::pallet_contracts::chain_extension:: };
+
+    let T = context.substrate;
+    let E = context.env;
+    let Env = context.obce_env;
+    let extension = context.extension;
+
+    let mut callable_generics = impl_item.generics.clone();
+    callable_generics = filter_generics(callable_generics, &context.lifetime1);
+    let (callable_impls, _, callable_where) = callable_generics.split_for_impl();
+
     let mut main_generics = impl_item.generics.clone();
     main_generics = filter_generics(main_generics, &context.lifetime1);
-    main_generics = filter_generics(main_generics, &context.lifetime2);
-    main_generics = filter_generics(main_generics, &context.env);
+    main_generics = filter_generics(main_generics, &E);
+    main_generics = filter_generics(main_generics, &Env);
     let (main_impls, _, main_where) = main_generics.split_for_impl();
 
     let mut call_generics = impl_item.generics.clone();
     call_generics = filter_generics(call_generics, &context.lifetime1);
-    call_generics = filter_generics(call_generics, &context.lifetime2);
+    call_generics = filter_generics(call_generics, &Env);
+
+    // User is not required to use `Ext` trait for testing, so we automatically
+    // add `Ext` bound when generating "production" code.
+    if let Some(where_clause) = &mut call_generics.where_clause {
+        where_clause.predicates.push(parse_quote! {
+            #E: #namespace Ext<T = #T>
+        });
+    } else {
+        call_generics.where_clause = Some(parse_quote! {
+            where #E: #namespace Ext<T = #T>
+        });
+    }
+
     let (_, _, call_where) = call_generics.split_for_impl();
 
-    let T = context.substrate;
-    let E = context.env;
-    let extension = context.extension;
-    let namespace = quote! { ::obce::substrate::pallet_contracts::chain_extension:: };
     let trait_;
     let dyn_trait;
     if let Some((_, path, _)) = impl_item.trait_ {
@@ -143,23 +164,32 @@ fn chain_extension_trait_impl(mut impl_item: ItemImpl) -> Result<TokenStream, Er
             let (weight_tokens, pre_charge) = handle_weight_attribute(&input_bindings, obce_attrs.iter())?;
             let ret_val_tokens = handle_ret_val_attribute(obce_attrs.iter());
 
-            let read_with_charge = if pre_charge {
-                quote! {
-                    #weight_tokens;
-                    let #lhs_pat = env.read_as_unbounded(len)?;
-                }
+            let (read_with_charge, pre_charge_arg) = if pre_charge {
+                (
+                    quote! {
+                        let pre_charged = #weight_tokens;
+                        let #lhs_pat = env.read_as_unbounded(len)?;
+                    },
+                    quote! {
+                        Some(pre_charged)
+                    },
+                )
             } else {
-                quote! {
-                    let #lhs_pat = env.read_as_unbounded(len)?;
-                    #weight_tokens;
-                }
+                (
+                    quote! {
+                        let #lhs_pat = env.read_as_unbounded(len)?;
+                        #weight_tokens;
+                    },
+                    quote! {
+                        None
+                    },
+                )
             };
 
             Result::<_, Error>::Ok(quote! {
                 <#dyn_trait as ::obce::codegen::MethodDescription<#hash>>::ID => {
                     #read_with_charge
-                    let mut context = ::obce::substrate::ExtensionContext::new(self, env);
-                    #[allow(clippy::unnecessary_mut_passed)]
+                    let mut context = ::obce::substrate::ExtensionContext::new(self, env, #pre_charge_arg);
                     let result = <_ as #trait_>::#method_name(
                         &mut context
                         #(, #call_params)*
@@ -176,22 +206,34 @@ fn chain_extension_trait_impl(mut impl_item: ItemImpl) -> Result<TokenStream, Er
         .try_collect()?;
 
     Ok(quote! {
-        impl #main_impls #namespace ChainExtension<#T> for #extension #main_where {
-            fn call<#E>(&mut self, env: #namespace Environment<#E, #namespace InitState>)
-                -> ::core::result::Result<#namespace RetVal, ::obce::substrate::sp_runtime::DispatchError>
-                #call_where
-            {
-                let mut env = env.buf_in_buf_out();
+        impl #callable_impls ::obce::substrate::CallableChainExtension<#E, #T, #Env> for #extension
+            #callable_where
+        {
+            fn call(&mut self, mut env: #Env) -> ::core::result::Result<
+                #namespace RetVal,
+                ::obce::substrate::CriticalError
+            > {
                 let len = env.in_len();
 
                 match env.func_id() {
                     #(#methods)*
-                    _ => ::core::result::Result::Err(::obce::substrate::sp_runtime::DispatchError::Other(
+                    _ => ::core::result::Result::Err(::obce::substrate::CriticalError::Other(
                         "InvalidFunctionId"
                     ))?,
                 };
 
                 Ok(#namespace RetVal::Converging(0))
+            }
+        }
+
+        impl #main_impls #namespace ChainExtension<#T> for #extension #main_where {
+            fn call<#E>(&mut self, env: #namespace Environment<#E, #namespace InitState>)
+                -> ::core::result::Result<#namespace RetVal, ::obce::substrate::CriticalError>
+                #call_where
+            {
+                <#extension as ::obce::substrate::CallableChainExtension<#E, #T, _>>::call(
+                    self, env.buf_in_buf_out()
+                )
             }
         }
 
@@ -204,12 +246,12 @@ fn chain_extension_trait_impl(mut impl_item: ItemImpl) -> Result<TokenStream, Er
 struct ExtensionContext {
     // Lifetime `'a`
     lifetime1: GenericArgument,
-    // Lifetime `'b`
-    lifetime2: GenericArgument,
     // Generic `E`
     env: GenericArgument,
     // Generic `T`
     substrate: GenericArgument,
+    // Generic `Env`
+    obce_env: GenericArgument,
     // Generic `Extension`
     extension: GenericArgument,
 }
@@ -235,23 +277,23 @@ impl TryFrom<&ItemImpl> for ExtensionContext {
         let PathArguments::AngleBracketed(generic_args) = &extension.arguments else {
             return Err(format_err_spanned!(
                 path,
-                "`ExtensionContext` should have 5 generics as `<'a, 'b, E, T, Extension>`"
+                "`ExtensionContext` should have 5 generics as `<'a, E, T, Env, Extension>`"
             ));
         };
 
-        let (lifetime1, lifetime2, env, substrate, extension) =
+        let (lifetime1, env, substrate, obce_env, extension) =
             generic_args.args.iter().cloned().tuples().exactly_one().map_err(|_| {
                 format_err_spanned!(
                     generic_args,
-                    "`ExtensionContext` should have 5 generics as `<'a, 'b, E, T, Extension>`"
+                    "`ExtensionContext` should have 5 generics as `<'a, E, T, Env, Extension>`"
                 )
             })?;
 
         Ok(ExtensionContext {
             lifetime1,
-            lifetime2,
             env,
             substrate,
+            obce_env,
             extension,
         })
     }
@@ -422,7 +464,7 @@ fn handle_expr_weight(input_bindings: &InputBindings, expr: &str, pre_charge: bo
     Ok(quote! {{
         #[allow(unused_variables)]
         #raw_map
-        env.charge_weight(#expr)?;
+        env.charge_weight(#expr)?
     }})
 }
 
@@ -472,6 +514,6 @@ fn handle_dispatch_weight(
         #raw_map
         let __call_variant = &#pallet_ns ::Call::<T>::#call_variant_name(#dispatch_args);
         let __dispatch_info = <#pallet_ns ::Call<T> as ::obce::substrate::frame_support::dispatch::GetDispatchInfo>::get_dispatch_info(__call_variant);
-        env.charge_weight(__dispatch_info.weight)?;
+        env.charge_weight(__dispatch_info.weight)?
     }})
 }
