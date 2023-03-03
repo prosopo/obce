@@ -79,11 +79,9 @@ pub fn definition(attrs: TokenStream, trait_item: TokenStream) -> TokenStream {
 /// ```ignore
 /// use obce::substrate::{
 ///     frame_system::Config as SysConfig,
-///     pallet_contracts::{
-///         chain_extension::Ext,
-///         Config as ContractConfig,
-///     },
+///     pallet_contracts::Config as ContractConfig,
 ///     sp_runtime::traits::StaticLookup,
+///     ChainExtensionEnvironment,
 ///     ExtensionContext
 /// };
 ///
@@ -95,11 +93,11 @@ pub fn definition(attrs: TokenStream, trait_item: TokenStream) -> TokenStream {
 /// }
 ///
 /// #[obce::implementation]
-/// impl<'a, 'b, E, T> ChainExtensionDefinition for ExtensionContext<'a, 'b, E, T, ChainExtension>
+/// impl<'a, E, T, Env> ChainExtensionDefinition for ExtensionContext<'a, E, T, Env, ChainExtension>
 /// where
 ///     T: SysConfig + ContractConfig,
 ///     <<T as SysConfig>::Lookup as StaticLookup>::Source: From<<T as SysConfig>::AccountId>,
-///     E: Ext<T = T>,
+///     Env: ChainExtensionEnvironment<E, T>,
 /// {
 ///     fn extension_method(&self) {
 ///         // Do awesome stuff!
@@ -130,11 +128,9 @@ pub fn definition(attrs: TokenStream, trait_item: TokenStream) -> TokenStream {
 /// ```ignore
 /// use obce::substrate::{
 ///     frame_system::{Config as SysConfig, RawOrigin},
-///     pallet_contracts::{
-///         chain_extension::Ext,
-///         Config as ContractConfig,
-///     },
+///     pallet_contracts::Config as ContractConfig,
 ///     sp_runtime::traits::StaticLookup,
+///     ChainExtensionEnvironment,
 ///     ExtensionContext
 /// };
 ///
@@ -146,11 +142,11 @@ pub fn definition(attrs: TokenStream, trait_item: TokenStream) -> TokenStream {
 /// }
 ///
 /// #[obce::implementation]
-/// impl<'a, 'b, E, T> ChainExtensionDefinition for ExtensionContext<'a, 'b, E, T, ChainExtension>
+/// impl<'a, E, T, Env> ChainExtensionDefinition for ExtensionContext<'a, E, T, Env, ChainExtension>
 /// where
 ///     T: SysConfig + ContractConfig + pallet_example::Config,
 ///     <<T as SysConfig>::Lookup as StaticLookup>::Source: From<<T as SysConfig>::AccountId>,
-///     E: Ext<T = T>,
+///     Env: ChainExtensionEnvironment<E, T>,
 /// {
 ///     #[obce(weight(dispatch = "pallet_example::Pallet::<T>::test_method", args = "123"))]
 ///     fn extension_method(&mut self, val: u64) {
@@ -158,6 +154,53 @@ pub fn definition(attrs: TokenStream, trait_item: TokenStream) -> TokenStream {
 ///     }
 /// }
 /// ```
+///
+/// ## `Ext` trait bounds
+///
+/// You may notice that the example above doesn't have `E: Ext<T = T>` bound, which is required
+/// when calling your chain extension via `pallet_contracts::chain_extension::ChainExtension`.
+///
+/// This is because OBCE automatically generates two separate trait implementations for your
+/// chain extension struct - `obce::substrate::CallableChainExtension` and `pallet_contracts::chain_extension::ChainExtension`.
+///
+/// Only when generating the latter OBCE automatically adds `E: Ext<T = T>` bound, while still providing
+/// you capabilities to manually add `E: Ext<T = T>` on the implementation trait bounds to allow `Ext` trait
+/// usage inside implementation methods:
+///
+/// ```ignore
+/// use obce::substrate::{
+///     frame_system::{Config as SysConfig, RawOrigin},
+///     pallet_contracts::{
+///         chain_extension::Ext,
+///         Config as ContractConfig,
+///     },
+///     sp_runtime::traits::StaticLookup,
+///     ChainExtensionEnvironment,
+///     ExtensionContext
+/// };
+///
+/// pub struct ChainExtension;
+///
+/// #[obce::definition]
+/// pub trait ChainExtensionDefinition {
+///     fn extension_method(&mut self, val: u64);
+/// }
+///
+/// #[obce::implementation]
+/// impl<'a, E, T, Env> ChainExtensionDefinition for ExtensionContext<'a, E, T, Env, ChainExtension>
+/// where
+///     T: SysConfig + ContractConfig + pallet_example::Config,
+///     <<T as SysConfig>::Lookup as StaticLookup>::Source: From<<T as SysConfig>::AccountId>,
+///     Env: ChainExtensionEnvironment<E, T>,
+///     E: Ext<T = T>,
+/// {
+///     fn extension_method(&mut self, val: u64) {
+///         // Ext trait can be used here
+///     }
+/// }
+/// ```
+///
+/// This is done to ease chain extension environment generalization during testing.
 #[proc_macro_attribute]
 pub fn implementation(attrs: TokenStream, impl_item: TokenStream) -> TokenStream {
     match implementation::generate(attrs.into(), impl_item.into()) {

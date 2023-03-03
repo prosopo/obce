@@ -39,7 +39,16 @@ use core::marker::PhantomData;
 use pallet_contracts::chain_extension::RetVal;
 use sp_runtime::DispatchError;
 
+/// Callable chain extension with generalized environment information.
+///
+/// Unlike [`ChainExtension`](pallet_contracts::chain_extension::ChainExtension), [`CallableChainExtension`]
+/// provides capabilities to call chain extensions with generalized [`ChainExtensionEnvironment`],
+/// improving chain extension testing capabilities on the Substrate side.
+///
+/// This trait is automatically implemented on your Substrate chain extension struct
+/// with [`#[obce::implementation]`](macro@crate::implementation) expansion.
 pub trait CallableChainExtension<E, T, Env> {
+    /// Call chain extension with the provided [`ChainExtensionEnvironment`] implementation.
     fn call(&mut self, env: Env) -> Result<RetVal, CriticalError>;
 }
 
