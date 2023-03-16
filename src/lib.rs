@@ -153,6 +153,36 @@ pub mod codegen;
 pub use obce_macro::{
     definition,
     error,
+    hash,
     implementation,
     mock,
 };
+
+/// Chain extension identifier lookup.
+///
+/// # Description
+///
+/// Using [`obce::id!`](macro@id) macro, you can lookup chain extension and chain extension method identifiers.
+///
+/// # Example
+///
+/// ```
+/// #[obce::definition(id = 123)]
+/// pub trait ChainExtension {
+///     #[obce(id = 456)]
+///     fn method(&self);
+/// }
+///
+/// assert_eq!(obce::id!(ChainExtension), 123);
+/// assert_eq!(obce::id!(ChainExtension::method), 456);
+/// ```
+#[macro_export]
+macro_rules! id {
+    ($extension:ident) => {{
+        <dyn $extension as ::obce::codegen::ExtensionDescription>::ID
+    }};
+
+    ($extension:ident::$method:ident) => {{
+        <dyn $extension as ::obce::codegen::MethodDescription<{ ::obce::hash!($method) }>>::ID
+    }};
+}

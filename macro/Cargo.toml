@@ -15,11 +15,6 @@ include = ["Cargo.toml", "src/**/*.rs"]
 
 [dependencies]
 obce-codegen = { version = "~0.1.0", path = "../codegen", default-features = false }
-syn = "1"
-proc-macro2 = "1"
-synstructure = "0.12"
-
-[dev-dependencies]
 
 [lib]
 name = "obce_macro"
