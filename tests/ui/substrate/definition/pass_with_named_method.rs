@@ -2,6 +2,8 @@ mod const_eq;
 
 use const_eq::*;
 
+use obce::id;
+
 #[obce::definition]
 pub trait Trait {
     #[obce(id = "named-extension-method")]
@@ -9,5 +11,5 @@ pub trait Trait {
 }
 
 fn main() {
-    assert_const_eq::<{ <dyn Trait as obce::codegen::MethodDescription<0x3eae5bbc>>::ID }, 0x137b>();
+    assert_const_eq::<{ id!(Trait::extension_method) }, 0x137b>();
 }

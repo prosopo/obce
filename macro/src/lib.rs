@@ -26,6 +26,7 @@ use proc_macro::TokenStream;
 use obce_codegen::{
     definition,
     error,
+    hash,
     implementation,
     mock,
 };
@@ -355,5 +356,26 @@ pub fn mock(attrs: TokenStream, enum_item: TokenStream) -> TokenStream {
     match mock::generate(attrs.into(), enum_item.into()) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
+    }
+}
+
+/// Chain extension method hasher.
+///
+/// # Description
+///
+/// Using [`hash!`](macro@hash) macro, you can generate `u32` hashes of chain extension method idents.
+///
+/// This macro is rarely used directly, you should prefer using `obce::id` instead.
+///
+/// # Example
+///
+/// ```ignore
+/// hash!(chain_extension_method);
+/// ```
+#[proc_macro]
+pub fn hash(name: TokenStream) -> TokenStream {
+    match hash::generate(name.into()) {
+        Ok(tokens) => tokens.into(),
+        Err(error) => error.to_compile_error().into(),
     }
 }

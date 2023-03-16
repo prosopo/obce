@@ -2,9 +2,11 @@ mod const_eq;
 
 use const_eq::*;
 
+use obce::id;
+
 #[obce::definition]
 pub trait Trait {}
 
 fn main() {
-    assert_const_eq::<{ <dyn Trait as obce::codegen::ExtensionDescription>::ID }, 0xd401>();
+    assert_const_eq::<{ id!(Trait) }, 0xd401>();
 }
