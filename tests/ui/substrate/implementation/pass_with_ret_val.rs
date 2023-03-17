@@ -13,6 +13,7 @@ pub enum Error {
     #[obce(ret_val = "100")]
     One,
 
+    #[obce(ret_val = "200")]
     Two
 }
 
