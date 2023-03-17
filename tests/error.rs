@@ -24,8 +24,29 @@ fn error_macro_with_critical_works() {
 }
 
 #[test]
-fn error_macro_with_ret_val_works() {
+fn error_macro_with_enforced_ret_val_works() {
     #[obce::error]
+    pub enum Error {
+        #[obce(ret_val = "100")]
+        FirstRetValVariant,
+
+        #[obce(ret_val = "200")]
+        SecondRetValVariant,
+    }
+
+    assert!(matches!(
+        RetVal::try_from(Error::FirstRetValVariant),
+        Ok(RetVal::Converging(100))
+    ));
+    assert!(matches!(
+        RetVal::try_from(Error::SecondRetValVariant),
+        Ok(RetVal::Converging(200))
+    ));
+}
+
+#[test]
+fn error_macro_with_relaxed_ret_val_works() {
+    #[obce::error(require_ret_val = false)]
     pub enum Error<T> {
         #[obce(ret_val = "100")]
         RetValVariant,
