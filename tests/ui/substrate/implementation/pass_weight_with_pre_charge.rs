@@ -21,7 +21,7 @@ where
     <<T as SysConfig>::Lookup as StaticLookup>::Source: From<<T as SysConfig>::AccountId>,
     Env: ChainExtensionEnvironment<E, T>,
 {
-    #[obce(weight(expr = "Weight::from_ref_time(123)", pre_charge))]
+    #[obce(weight(expr = "Weight::from_parts(123, 0)", pre_charge))]
     fn extension_method(&mut self, _val: u64) {
         self.pre_charged().unwrap();
     }

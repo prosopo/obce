@@ -121,7 +121,7 @@ pub fn definition(attrs: TokenStream, trait_item: TokenStream) -> TokenStream {
 ///
 /// You can also use `#[obce(weight(expr = ...))]` to charge weight without pallet calls.
 /// In this case, you can simply provide any expression which returns `Weight`:
-/// `#[obce(weight(expr = "Weight::from_ref_time(some_val)"))]`.
+/// `#[obce(weight(expr = "Weight::from_parts(ref_time, proof_size)"))]`.
 ///
 /// ## Usage example
 ///

@@ -14,7 +14,7 @@ ink_primitives = { git = "https://github.com/paritytech/ink", rev = "4655a8b4413
 ink_metadata = { git = "https://github.com/paritytech/ink", rev = "4655a8b4413cb50cbc38d1b7c173ad426ab06cde", default-features = false, features = ["derive"], optional = true }
 ink_storage = { git = "https://github.com/paritytech/ink", rev = "4655a8b4413cb50cbc38d1b7c173ad426ab06cde", default-features = false, optional = true }
 
-pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", default-features = false, rev = "376ada82d77503d099a61fd198a3089caf7920c9", optional = true }
+pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40", default-features = false, optional = true }
 
 [features]
 default = ["std"]
