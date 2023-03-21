@@ -21,6 +21,7 @@
 
 pub mod definition;
 pub mod error;
+pub mod extension;
 pub mod hash;
 pub mod implementation;
 pub mod mock;

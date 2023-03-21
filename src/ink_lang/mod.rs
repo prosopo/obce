@@ -26,6 +26,9 @@ pub use ink::{
     prelude,
     primitives,
     storage,
+    ChainExtensionInstance,
 };
 #[cfg(feature = "std")]
 pub use ink_engine;
+
+pub use obce_macro::ink_extension as extension;
