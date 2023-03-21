@@ -10,6 +10,7 @@ use sp_core::{
     Decode,
     MaxEncodedLen,
 };
+use sp_std::vec::Vec;
 
 /// Generalized chain extension execution environment.
 ///
