@@ -347,6 +347,7 @@ pub fn error(attrs: TokenStream, enum_item: TokenStream) -> TokenStream {
 ///     fn another_method(&mut self, val: u32) -> u32;
 /// }
 ///
+/// #[obce::ink_lang::extension]
 /// struct MyChainExtension;
 ///
 /// impl ChainExtension for MyChainExtension {}
