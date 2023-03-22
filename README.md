@@ -17,7 +17,7 @@ implement the chain extension using generated traits.
 
 In this tutorial we'll spin up our own Substrate node with `rand-extension` enabled.
 
-1. Clone [`substrate-contracts-node`](https://github.com/paritytech/substrate-contracts-node) repository.
+1. Clone [`substrate-contracts-node`](https://github.com/Cardinal-Cryptography/substrate-contracts-node) repository.
 2. Copy `examples/rand-extension/chain-extension` folder to a cloned `substrate-contracts-node` repo and add it as a workspace member to `Cargo.toml`:
 
 ```toml
