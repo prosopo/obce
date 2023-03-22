@@ -47,7 +47,7 @@ mod weights {
 
     impl<I> WeightInfo for I {
         fn test(val: u64) -> Weight {
-            Weight::from_ref_time(val)
+            Weight::from_parts(val, 0)
         }
     }
 }

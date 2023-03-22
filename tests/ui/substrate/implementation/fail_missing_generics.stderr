@@ -1,4 +1,4 @@
-error: `ExtensionContext` should have 5 generics as `<'a, 'b, E, T, Extension>`
+error: `ExtensionContext` should have 5 generics as `<'a, E, T, Env, Extension>`
  --> tests/ui/substrate/implementation/fail_missing_generics.rs:7:35
   |
 7 | impl ChainExtensionDefinition for ExtensionContext {}

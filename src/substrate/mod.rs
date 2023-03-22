@@ -19,8 +19,10 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+mod environment;
 mod is_critical_error;
 
+pub use environment::ChainExtensionEnvironment;
 pub use frame_support;
 pub use frame_system;
 pub use is_critical_error::{
@@ -32,34 +34,55 @@ pub use sp_core;
 pub use sp_runtime;
 pub use sp_std;
 
-use frame_system::Config as SysConfig;
-use pallet_contracts::chain_extension::{
-    BufInBufOutState,
-    Environment,
-    Ext,
-};
+use core::marker::PhantomData;
+
+use pallet_contracts::chain_extension::RetVal;
 use sp_runtime::DispatchError;
 
+/// Callable chain extension with generalized environment information.
+///
+/// Unlike [`ChainExtension`](pallet_contracts::chain_extension::ChainExtension), [`CallableChainExtension`]
+/// provides capabilities to call chain extensions with generalized [`ChainExtensionEnvironment`],
+/// improving chain extension testing capabilities on the Substrate side.
+///
+/// This trait is automatically implemented on your Substrate chain extension struct
+/// with [`#[obce::implementation]`](macro@crate::implementation) expansion.
+pub trait CallableChainExtension<E, T, Env> {
+    /// Call chain extension with the provided [`ChainExtensionEnvironment`] implementation.
+    fn call(&mut self, env: Env) -> Result<RetVal, CriticalError>;
+}
+
 /// Chain extension context that you can use with your implementations.
-pub struct ExtensionContext<'a, 'b, E: Ext, T, Extension>
+pub struct ExtensionContext<'a, E, T, Env, Extension>
 where
-    T: SysConfig,
-    E: Ext<T = T>,
+    Env: ChainExtensionEnvironment<E, T>,
 {
     /// Chain extension environment.
-    pub env: Environment<'a, 'b, E, BufInBufOutState>,
+    pub env: Env,
 
     /// Custom chain extension storage.
     pub storage: &'a mut Extension,
+
+    pre_charged: Option<Env::ChargedAmount>,
+
+    _ghost: PhantomData<(E, T)>,
 }
 
-impl<'a, 'b, E: Ext, T, Extension> ExtensionContext<'a, 'b, E, T, Extension>
+impl<'a, E, T, Env, Extension> ExtensionContext<'a, E, T, Env, Extension>
 where
-    T: SysConfig,
-    E: Ext<T = T>,
+    Env: ChainExtensionEnvironment<E, T>,
 {
-    pub fn new(storage: &'a mut Extension, env: Environment<'a, 'b, E, BufInBufOutState>) -> Self {
-        ExtensionContext { env, storage }
+    pub fn new(storage: &'a mut Extension, env: Env, pre_charged: Option<Env::ChargedAmount>) -> Self {
+        ExtensionContext {
+            env,
+            storage,
+            pre_charged,
+            _ghost: PhantomData,
+        }
+    }
+
+    pub fn pre_charged(&mut self) -> Option<Env::ChargedAmount> {
+        self.pre_charged.take()
     }
 }
 
