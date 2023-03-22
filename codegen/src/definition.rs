@@ -180,6 +180,13 @@ pub fn generate(attrs: TokenStream, input: TokenStream) -> Result<TokenStream, E
         })
         .try_collect()?;
 
+    if let Some(id) = methods.iter().map(|Method { id, .. }| id).duplicates().next() {
+        return Err(format_err_spanned!(
+            trait_item,
+            "found duplicated method identifier: {id}",
+        ))
+    }
+
     let method_descriptions = methods.iter().map(
         |Method {
              id,
