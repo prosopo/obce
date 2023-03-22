@@ -26,6 +26,7 @@ use proc_macro::TokenStream;
 use obce_codegen::{
     definition,
     error,
+    extension,
     hash,
     implementation,
     mock,
@@ -346,6 +347,7 @@ pub fn error(attrs: TokenStream, enum_item: TokenStream) -> TokenStream {
 ///     fn another_method(&mut self, val: u32) -> u32;
 /// }
 ///
+/// #[obce::ink_lang::extension]
 /// struct MyChainExtension;
 ///
 /// impl ChainExtension for MyChainExtension {}
@@ -397,6 +399,34 @@ pub fn error(attrs: TokenStream, enum_item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn mock(attrs: TokenStream, enum_item: TokenStream) -> TokenStream {
     match mock::generate(attrs.into(), enum_item.into()) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+/// ink! chain extension marker.
+///
+/// # Description
+///
+/// Using this macro, you can mark your ink! chain extension structs to
+/// be instantiable using ink!'s environment.
+///
+/// # Example
+///
+/// ```ignore
+/// #[obce::definition]
+/// pub trait Trait {
+///     fn method(&mut self, val: u32, another_val: u32) -> u32;
+/// }
+///
+/// #[obce::ink_lang::extension]
+/// struct TestExtension;
+///
+/// impl Trait for TestExtension {}
+/// ```
+#[proc_macro_attribute]
+pub fn ink_extension(attrs: TokenStream, struct_item: TokenStream) -> TokenStream {
+    match extension::ink(attrs.into(), struct_item.into()) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
     }

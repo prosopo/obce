@@ -6,6 +6,7 @@ pub trait Trait {
     fn another_method(&mut self, val: u32) -> u32;
 }
 
+#[obce::ink_lang::extension]
 struct TestExtension;
 
 impl Trait for TestExtension {}

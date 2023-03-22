@@ -97,6 +97,11 @@ path = "tests/mock.rs"
 required-features = ["ink-std"]
 
 [[test]]
+name = "ink-environment"
+path = "tests/environment.rs"
+required-features = ["ink-std"]
+
+[[test]]
 name = "substrate-ui"
 path = "tests/ui/substrate.rs"
 required-features = ["substrate-std"]

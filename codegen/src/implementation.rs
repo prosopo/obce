@@ -190,6 +190,7 @@ fn chain_extension_trait_impl(mut impl_item: ItemImpl) -> Result<TokenStream, Er
                 <#dyn_trait as ::obce::codegen::MethodDescription<#hash>>::ID => {
                     #read_with_charge
                     let mut context = ::obce::substrate::ExtensionContext::new(self, env, #pre_charge_arg);
+                    #[allow(clippy::unnecessary_mut_passed)]
                     let result = <_ as #trait_>::#method_name(
                         &mut context
                         #(, #call_params)*
