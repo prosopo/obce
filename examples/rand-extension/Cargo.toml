@@ -13,7 +13,7 @@ scale-info = { version = "2.3", default-features = false, features = ["derive"],
 rand-extension = { path = "./chain-extension", default-features = false, features = ["ink"] }
 
 [dev-dependencies]
-obce = { git = "https://github.com/727-Ventures/obce", default-features = false, features = ["ink-std"] }
+obce = { git = "https://github.com/prosopo/obce", default-features = false, features = ["ink-std"] }
 
 [lib]
 name = "test_contract"
